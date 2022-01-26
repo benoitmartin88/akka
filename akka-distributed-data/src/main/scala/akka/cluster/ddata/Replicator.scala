@@ -8,8 +8,8 @@ import java.security.MessageDigest
 import java.util.Optional
 import java.util.concurrent.ThreadLocalRandom
 import java.util.concurrent.TimeUnit
-import java.util.function.{ Function => JFunction }
-
+import java.util.function.{Function => JFunction}
+import scala.annotation.nowarn
 import scala.annotation.varargs
 import scala.collection.immutable
 import scala.collection.immutable.TreeSet
@@ -21,10 +21,7 @@ import scala.util.Success
 import scala.util.Try
 import scala.util.control.NoStackTrace
 import scala.util.control.NonFatal
-
-import scala.annotation.nowarn
 import com.typesafe.config.Config
-
 import akka.actor.Actor
 import akka.actor.ActorInitializationException
 import akka.actor.ActorLogging
@@ -589,6 +586,121 @@ object Replicator {
   }
 
   /**
+   * 2PC phase 1: prepare
+   * @param tid Transaction Id
+   * @param request The optional request context is included in the reply messages. This is a convenient way to pass contextual information (e.g. original sender) without having to use ask or maintain local correlation data structures.
+   */
+  final case class TwoPhaseCommitPrepare(tid: Int, request: Option[Any] = None)
+    extends Command[ReplicatedData]
+      with ReplicatorMessage {
+
+    /**
+     * Java API: `Get` value from local `Replicator`, i.e. `ReadLocal` consistency.
+     */
+    def this(tid: Int) = this(tid, None)
+
+    /**
+     * Java API: `Get` value from local `Replicator`, i.e. `ReadLocal` consistency.
+     */
+    def this(tid: Int, request: Optional[Any]) =
+      this(tid, Option(request.orElse(null)))
+
+    override def key: Key[ReplicatedData] = GCounterKey("A")  // TODO: this is a hack !
+  }
+
+  sealed abstract class TwoPhaseCommitPrepareResponse extends NoSerializationVerificationNeeded {
+    def result: Boolean
+    def request: Option[Any]
+
+    /** Java API */
+    def getRequest: Optional[Any] = Optional.ofNullable(request.orNull)
+  }
+
+  final case class TwoPhaseCommitPrepareSuccess(request: Option[Any])
+    extends TwoPhaseCommitPrepareResponse
+      with ReplicatorMessage {
+    override def result = true
+  }
+
+  final case class TwoPhaseCommitPrepareError(msg: String, request: Option[Any])
+    extends TwoPhaseCommitPrepareResponse
+      with ReplicatorMessage {
+    override def result = false
+  }
+
+  /**
+   * 2PC phase 2: commit
+   * @param tid Transaction Id
+   * @param request The optional request context is included in the reply messages. This is a convenient way to pass contextual information (e.g. original sender) without having to use ask or maintain local correlation data structures.
+   */
+  final case class TwoPhaseCommitCommit(tid: Int, request: Option[Any] = None) extends Command[ReplicatedData] with ReplicatorMessage {
+
+    /**
+     * Java API: `Get` value from local `Replicator`, i.e. `ReadLocal` consistency.
+     */
+    def this(tid: Int) = this(tid, None)
+
+    /**
+     * Java API: `Get` value from local `Replicator`, i.e. `ReadLocal` consistency.
+     */
+    def this(tid: Int, request: Optional[Any]) =
+      this(tid, Option(request.orElse(null)))
+
+    override def key: Key[ReplicatedData] = GCounterKey("A")  // TODO: this is a hack !
+  }
+
+  sealed abstract class TwoPhaseCommitCommitResponse extends NoSerializationVerificationNeeded {
+    def request: Option[Any]
+
+    /** Java API */
+    def getRequest: Optional[Any] = Optional.ofNullable(request.orNull)
+  }
+
+  final case class TwoPhaseCommitCommitSuccess(request: Option[Any])
+    extends TwoPhaseCommitCommitResponse
+      with ReplicatorMessage {
+  }
+
+  final case class TwoPhaseCommitCommitError(msg: String, request: Option[Any])
+    extends TwoPhaseCommitCommitResponse
+      with ReplicatorMessage {
+  }
+
+
+  /**
+   * 2PC phase 2: abort
+   * @param tid Transaction Id
+   * @param request The optional request context is included in the reply messages. This is a convenient way to pass contextual information (e.g. original sender) without having to use ask or maintain local correlation data structures.
+   */
+  final case class TwoPhaseCommitAbort(tid: Int, request: Option[Any] = None) extends Command[ReplicatedData] with ReplicatorMessage {
+
+    /**
+     * Java API: `Get` value from local `Replicator`, i.e. `ReadLocal` consistency.
+     */
+    def this(tid: Int) = this(tid, None)
+
+    /**
+     * Java API: `Get` value from local `Replicator`, i.e. `ReadLocal` consistency.
+     */
+    def this(tid: Int, request: Optional[Any]) =
+      this(tid, Option(request.orElse(null)))
+
+    override def key: Key[ReplicatedData] = GCounterKey("A")  // TODO: this is a hack !
+  }
+
+  sealed abstract class TwoPhaseCommitAbortResponse extends NoSerializationVerificationNeeded {
+    def request: Option[Any]
+
+    /** Java API */
+    def getRequest: Optional[Any] = Optional.ofNullable(request.orNull)
+  }
+
+  final case class TwoPhaseCommitAbortSuccess(request: Option[Any])
+    extends TwoPhaseCommitAbortResponse
+      with ReplicatorMessage {
+  }
+
+  /**
    * Send this message to the local `Replicator` to retrieve a data value for the
    * given `key`. The `Replicator` will reply with one of the [[GetResponse]] messages.
    *
@@ -596,20 +708,20 @@ object Replicator {
    * way to pass contextual information (e.g. original sender) without having to use `ask`
    * or maintain local correlation data structures.
    */
-  final case class Get[A <: ReplicatedData](key: Key[A], consistency: ReadConsistency, request: Option[Any] = None)
+  final case class Get[A <: ReplicatedData](key: Key[A], consistency: ReadConsistency, request: Option[Any] = None, tid: Option[Int] = None)
       extends Command[A]
       with ReplicatorMessage {
 
     /**
      * Java API: `Get` value from local `Replicator`, i.e. `ReadLocal` consistency.
      */
-    def this(key: Key[A], consistency: ReadConsistency) = this(key, consistency, None)
+    def this(key: Key[A], consistency: ReadConsistency) = this(key, consistency, None, None)
 
     /**
      * Java API: `Get` value from local `Replicator`, i.e. `ReadLocal` consistency.
      */
     def this(key: Key[A], consistency: ReadConsistency, request: Optional[Any]) =
-      this(key, consistency, Option(request.orElse(null)))
+      this(key, consistency, Option(request.orElse(null)), None)
 
   }
   sealed abstract class GetResponse[A <: ReplicatedData] extends NoSerializationVerificationNeeded {
@@ -734,8 +846,13 @@ object Replicator {
         key: Key[A],
         initial: A,
         writeConsistency: WriteConsistency,
-        request: Option[Any] = None)(modify: A => A): Update[A] =
-      Update(key, writeConsistency, request)(modifyWithInitial(initial, modify))
+        request: Option[Any] = None,
+        tid: Option[Int] = None)(modify: A => A): Update[A] =
+      Update(key, writeConsistency, request, tid)(modifyWithInitial(initial, modify))
+
+    def apply[A <: ReplicatedData](key: Key[A], writeConsistency: WriteConsistency, request: Option[Any])(
+      modify: Option[A] => A): Update[A] =
+      Update(key, writeConsistency, request, None)(data => modify.apply(data))
 
     private def modifyWithInitial[A <: ReplicatedData](initial: A, modify: A => A): Option[A] => A = {
       case Some(data) => modify(data)
@@ -759,10 +876,13 @@ object Replicator {
    * function that only uses the data parameter and stable fields from enclosing scope. It must
    * for example not access `sender()` reference of an enclosing actor.
    */
-  final case class Update[A <: ReplicatedData](key: Key[A], writeConsistency: WriteConsistency, request: Option[Any])(
+  final case class Update[A <: ReplicatedData](key: Key[A], writeConsistency: WriteConsistency, request: Option[Any], tid: Option[Int])(
       val modify: Option[A] => A)
       extends Command[A]
       with NoSerializationVerificationNeeded {
+
+//    def apply(key: Key[A], writeConsistency: WriteConsistency, request: Option[Any]) =
+//      Update(key, writeConsistency, request, None)(data => data.get)
 
     /**
      * Java API: Modify value of local `Replicator` and replicate with given `writeConsistency`.
@@ -772,7 +892,7 @@ object Replicator {
      * passed to the `modify` function.
      */
     def this(key: Key[A], initial: A, writeConsistency: WriteConsistency, modify: JFunction[A, A]) =
-      this(key, writeConsistency, None)(Update.modifyWithInitial(initial, data => modify.apply(data)))
+      this(key, writeConsistency, None, None)(Update.modifyWithInitial(initial, data => modify.apply(data)))
 
     /**
      * Java API: Modify value of local `Replicator` and replicate with given `writeConsistency`.
@@ -791,7 +911,7 @@ object Replicator {
         writeConsistency: WriteConsistency,
         request: Optional[Any],
         modify: JFunction[A, A]) =
-      this(key, writeConsistency, Option(request.orElse(null)))(
+      this(key, writeConsistency, Option(request.orElse(null)), None)(
         Update.modifyWithInitial(initial, data => modify.apply(data)))
 
   }
@@ -1482,6 +1602,9 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
   var allReachableClockTime = 0L
   var unreachable = Set.empty[UniqueAddress]
 
+  // inflight data (uncommited transaction)
+//  key: KeyR, writeConsistency: WriteConsistency, envelope: DataEnvelope, req: Option[Any], delta: Option[ReplicatedDelta]
+  var inflightEntries = mutable.HashMap.empty[Int, mutable.ListBuffer[(KeyR, WriteConsistency, DataEnvelope, Option[Any], Option[ReplicatedDelta])]]
   // the actual data
   var dataEntries = Map.empty[KeyId, (DataEnvelope, Digest)]
   // keys that have changed, Changed event published to subscribers on FlushChanges
@@ -1658,8 +1781,11 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
           }
       }
 
-    case Get(key, consistency, req)    => receiveGet(key, consistency, req)
-    case u @ Update(key, writeC, req)  => receiveUpdate(key, u.modify, writeC, req)
+    case TwoPhaseCommitPrepare(tid, req)  => receiveTwoPhaseCommitPrepare(tid, req)
+    case TwoPhaseCommitCommit(tid, req)   => receiveTwoPhaseCommitCommit(tid, req)
+    case TwoPhaseCommitAbort(tid, req)    => receiveTwoPhaseCommitAbort(tid, req)
+    case Get(key, consistency, req, tid)    => receiveGet(key, consistency, req, tid)
+    case u @ Update(key, writeC, req, tid)  => receiveUpdate(tid, key, u.modify, writeC, req)
     case ReadRepair(key, envelope)     => receiveReadRepair(key, envelope)
     case FlushChanges                  => receiveFlushChanges()
     case DeltaPropagationTick          => receiveDeltaPropagationTick()
@@ -1683,9 +1809,62 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
     case TestFullStateGossip(enabled)  => fullStateGossipEnabled = enabled
   }
 
-  def receiveGet(key: KeyR, consistency: ReadConsistency, req: Option[Any]): Unit = {
+  def receiveTwoPhaseCommitPrepare(tid: Int, req: Option[Any]): Unit = {
+    log.info("Received TwoPhaseCommitPrepare for transaction [{}].", tid)
+
+    val reply = if (inflightEntries.contains(tid)) {
+      TwoPhaseCommitPrepareError("Transaction id " + tid + " already inflight", req)
+    } else {
+      inflightEntries.update(tid, new mutable.ListBuffer())
+      TwoPhaseCommitPrepareSuccess(req)
+    }
+
+    replyTo ! reply
+  }
+
+  def receiveTwoPhaseCommitCommit(tid: Int, req: Option[Any]): Unit = {
+    log.info("Received TwoPhaseCommitCommit for transaction [{}].", tid)
+
+    if (!inflightEntries.contains(tid)) {
+      replyTo ! TwoPhaseCommitCommitError("no transaction with id " + tid + ": prepare not called or wrong transaction id", req)
+    } else {
+
+      for ((key, writeConsistency, envelope, req, delta) <- inflightEntries(tid)) {
+        handleUpdate(key, writeConsistency, envelope, req, delta, sendReply = false)
+      }
+
+      inflightEntries.remove(tid) // TODO: what if there is an error ?
+
+      replyTo ! TwoPhaseCommitCommitSuccess(req)
+    }
+  }
+
+  def receiveTwoPhaseCommitAbort(tid: Int, req: Option[Any]): Unit = {
+    log.info("Received TwoPhaseCommitAbort for transaction [{}].", tid)
+    inflightEntries.remove(tid)
+    replyTo ! TwoPhaseCommitAbortSuccess(req)
+  }
+
+  def receiveGet(key: KeyR, consistency: ReadConsistency, req: Option[Any], tid: Option[Int]): Unit = {
+    log.debug("Received Get for key [{}] on transaction [{}].", key, tid)
+
+    if (tid.isEmpty) {
+      // not a transaction
+      handleGet(key, consistency, req)
+    } else {
+      // in a transaction
+      if (inflightEntries.contains(tid.get)) {
+        val data = inflightEntries(tid.get).find(_._1 == key).get._3.data // find first entry for given key
+        replyTo ! GetSuccess(key, req)(data)
+      } else {
+        // not inflight, check local
+        handleGet(key, consistency, req)
+      }
+    }
+  }
+
+  def handleGet(key: KeyR, consistency: ReadConsistency, req: Option[Any]): Unit = {
     val localValue = getData(key.id)
-    log.debug("Received Get for key [{}].", key)
     if (isLocalGet(consistency)) {
       val reply = localValue match {
         case Some(DataEnvelope(DeletedData, _, _)) => GetDataDeleted(key, req)
@@ -1728,6 +1907,7 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
   def isLocalSender(): Boolean = !replyTo.path.address.hasGlobalScope
 
   def receiveUpdate[A <: ReplicatedData](
+      tid: Option[Int],
       key: KeyR,
       modify: Option[A] => A,
       writeConsistency: WriteConsistency,
@@ -1764,70 +1944,82 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
         log.debug("Received Update for deleted key [{}].", key)
         replyTo ! UpdateDataDeleted(key, req)
       case Success((envelope, delta)) =>
-        log.debug("Received Update for key [{}].", key)
+        log.debug("Received Update for key [{}] on transaction [{}].", key, tid)
 
-        // handle the delta
-        delta match {
-          case Some(d) => deltaPropagationSelector.update(key.id, d)
-          case None    => // not DeltaReplicatedData
-        }
-
-        // note that it's important to do deltaPropagationSelector.update before setData,
-        // so that the latest delta version is used
-        val newEnvelope = setData(key.id, envelope)
-
-        val durable = isDurable(key.id)
-        if (isLocalUpdate(writeConsistency)) {
-          if (durable)
-            durableStore ! Store(
-              key.id,
-              new DurableDataEnvelope(newEnvelope),
-              Some(StoreReply(UpdateSuccess(key, req), StoreFailure(key, req), replyTo)))
-          else
-            replyTo ! UpdateSuccess(key, req)
+        if (tid.isEmpty) {
+          // not in transaction or doing a commit
+          handleUpdate(key, writeConsistency, envelope, req, delta)
         } else {
-          val (writeEnvelope, writeDelta) = delta match {
-            case Some(NoDeltaPlaceholder) => (newEnvelope, None)
-            case Some(d: RequiresCausalDeliveryOfDeltas) =>
-              val v = deltaPropagationSelector.currentVersion(key.id)
-              (newEnvelope, Some(Delta(newEnvelope.copy(data = d), v, v)))
-            case Some(d) => (newEnvelope.copy(data = d), None)
-            case None    => (newEnvelope, None)
-          }
-          // When RequiresCausalDeliveryOfDeltas use deterministic order to so that sequence numbers
-          // of subsequent updates are in sync on the destination nodes.
-          // The order is also kept when prefer-oldest is enabled.
-          val shuffle = !(settings.preferOldest || writeDelta.exists(_.requiresCausalDeliveryOfDeltas))
-          val excludeExiting = writeConsistency match {
-            case _: WriteMajorityPlus | _: WriteAll => true
-            case _                                  => false
-          }
-          val writeAggregator =
-            context.actorOf(
-              WriteAggregator
-                .props(
-                  key,
-                  writeEnvelope,
-                  writeDelta,
-                  writeConsistency,
-                  req,
-                  selfUniqueAddress,
-                  nodesForReadWrite(excludeExiting),
-                  unreachable,
-                  shuffle,
-                  replyTo,
-                  durable)
-                .withDispatcher(context.props.dispatcher))
-          if (durable) {
-            durableStore ! Store(
-              key.id,
-              new DurableDataEnvelope(newEnvelope),
-              Some(StoreReply(UpdateSuccess(key, req), StoreFailure(key, req), writeAggregator)))
-          }
+          // in a transaction: save for later
+          inflightEntries(tid.get) += ((key, writeConsistency, envelope, req, delta))
+          replyTo ! UpdateSuccess(key, req)
         }
+
       case Failure(e) =>
         log.debug("Received Update for key [{}], failed: {}", key, e.getMessage)
         replyTo ! ModifyFailure(key, "Update failed: " + e.getMessage, e, req)
+    }
+  }
+
+  def handleUpdate(key: KeyR, writeConsistency: WriteConsistency, envelope: DataEnvelope, req: Option[Any], delta: Option[ReplicatedDelta], sendReply: Boolean = true): Unit = {
+    // handle the delta
+    delta match {
+      case Some(d) => deltaPropagationSelector.update(key.id, d)
+      case None    => // not DeltaReplicatedData
+    }
+
+    // note that it's important to do deltaPropagationSelector.update before setData,
+    // so that the latest delta version is used
+    val newEnvelope = setData(key.id, envelope)
+
+    val durable = isDurable(key.id)
+    if (isLocalUpdate(writeConsistency)) {
+      if (durable)
+        durableStore ! Store(
+          key.id,
+          new DurableDataEnvelope(newEnvelope),
+          Some(StoreReply(UpdateSuccess(key, req), StoreFailure(key, req), replyTo)))
+      else if (sendReply)
+        replyTo ! UpdateSuccess(key, req)
+    } else {
+      val (writeEnvelope, writeDelta) = delta match {
+        case Some(NoDeltaPlaceholder) => (newEnvelope, None)
+        case Some(d: RequiresCausalDeliveryOfDeltas) =>
+          val v = deltaPropagationSelector.currentVersion(key.id)
+          (newEnvelope, Some(Delta(newEnvelope.copy(data = d), v, v)))
+        case Some(d) => (newEnvelope.copy(data = d), None)
+        case None    => (newEnvelope, None)
+      }
+      // When RequiresCausalDeliveryOfDeltas use deterministic order to so that sequence numbers
+      // of subsequent updates are in sync on the destination nodes.
+      // The order is also kept when prefer-oldest is enabled.
+      val shuffle = !(settings.preferOldest || writeDelta.exists(_.requiresCausalDeliveryOfDeltas))
+      val excludeExiting = writeConsistency match {
+        case _: WriteMajorityPlus | _: WriteAll => true
+        case _                                  => false
+      }
+      val writeAggregator =
+        context.actorOf(
+          WriteAggregator
+            .props(
+              key,
+              writeEnvelope,
+              writeDelta,
+              writeConsistency,
+              req,
+              selfUniqueAddress,
+              nodesForReadWrite(excludeExiting),
+              unreachable,
+              shuffle,
+              replyTo,
+              durable)
+            .withDispatcher(context.props.dispatcher))
+      if (durable) {
+        durableStore ! Store(
+          key.id,
+          new DurableDataEnvelope(newEnvelope),
+          Some(StoreReply(UpdateSuccess(key, req), StoreFailure(key, req), writeAggregator)))
+      }
     }
   }
 

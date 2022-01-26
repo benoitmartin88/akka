@@ -177,6 +177,7 @@ object Replicator {
    * for example not access `sender()` reference of an enclosing actor.
    */
   final case class Update[A <: ReplicatedData] private (
+      tid: Option[Int],
       key: Key[A],
       writeConsistency: WriteConsistency,
       replyTo: ActorRef[UpdateResponse[A]])(val modify: Option[A] => A)
@@ -190,12 +191,13 @@ object Replicator {
      * passed to the `modify` function.
      */
     def this(
+        tid: Option[Int],
         key: Key[A],
         initial: A,
         writeConsistency: WriteConsistency,
         replyTo: ActorRef[UpdateResponse[A]],
         modify: JFunction[A, A]) =
-      this(key, writeConsistency, replyTo)(Update.modifyWithInitial(initial, data => modify.apply(data)))
+      this(tid, key, writeConsistency, replyTo)(Update.modifyWithInitial(initial, data => modify.apply(data)))
 
   }
 

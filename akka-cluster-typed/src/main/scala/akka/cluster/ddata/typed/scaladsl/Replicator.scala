@@ -136,15 +136,16 @@ object Replicator {
         key: Key[A],
         initial: A,
         writeConsistency: WriteConsistency,
-        replyTo: ActorRef[UpdateResponse[A]])(modify: A => A): Update[A] =
-      Update(key, writeConsistency, replyTo)(modifyWithInitial(initial, modify))
+        replyTo: ActorRef[UpdateResponse[A]],
+        tid: Option[Int] = None)(modify: A => A): Update[A] =
+      Update(key, writeConsistency, replyTo, tid)(modifyWithInitial(initial, modify))
 
     /**
      * Convenience for `ask`.
      */
     def apply[A <: ReplicatedData](key: Key[A], initial: A, writeConsistency: WriteConsistency)(
         modify: A => A): ActorRef[UpdateResponse[A]] => Update[A] =
-      replyTo => Update(key, writeConsistency, replyTo)(modifyWithInitial(initial, modify))
+      replyTo => Update(key, writeConsistency, replyTo, None)(modifyWithInitial(initial, modify))
 
     private def modifyWithInitial[A <: ReplicatedData](initial: A, modify: A => A): Option[A] => A = {
       case Some(data) => modify(data)
@@ -171,7 +172,8 @@ object Replicator {
   final case class Update[A <: ReplicatedData](
       key: Key[A],
       writeConsistency: WriteConsistency,
-      replyTo: ActorRef[UpdateResponse[A]])(val modify: Option[A] => A)
+      replyTo: ActorRef[UpdateResponse[A]],
+      tid: Option[Int])(val modify: Option[A] => A)
       extends Command
 
   type UpdateResponse[A <: ReplicatedData] = dd.Replicator.UpdateResponse[A]
