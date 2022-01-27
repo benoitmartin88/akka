@@ -34,7 +34,6 @@ class TransactionSpecMultiJvmNode3 extends TransactionSpec
 
 class TransactionSpec extends MultiNodeSpec(ReplicatorSpec) with STMultiNodeSpec with ImplicitSender {
   import Replicator._
-  import ReplicatorSpec._
 
   override def initialParticipants = roles.size
 
@@ -69,142 +68,124 @@ class TransactionSpec extends MultiNodeSpec(ReplicatorSpec) with STMultiNodeSpec
     enterBarrier(from.name + "-joined")
   }
 
-  "2PC" must {
 
+  "2PC prepare" must {
     "handle already existing transaction" in {
-      join(first, first)
+      val tid = 41
 
-      runOn(first) {
+      replicator ! TwoPhaseCommitPrepare(tid)
+      expectMsg(TwoPhaseCommitPrepareSuccess(None))
 
-        within(5.seconds) {
-          awaitAssert {
-            replicator ! GetReplicaCount
-            expectMsg(ReplicaCount(1))
-          }
-        }
-
-        val tid = 42
-        replicator ! TwoPhaseCommitPrepare(tid)
-        expectMsg(TwoPhaseCommitPrepareSuccess(None))
-
-        replicator ! TwoPhaseCommitPrepare(tid)
-        expectMsg(TwoPhaseCommitPrepareError("Transaction id " + tid + " already inflight", None))
-      }
-
-      enterBarrierAfterTestStep()
-    }
-
-    "handle commit" in {
-      join(first, first)
-
-      runOn(first) {
-
-        within(5.seconds) {
-          awaitAssert {
-            replicator ! GetReplicaCount
-            expectMsg(ReplicaCount(1))
-          }
-        }
-
-        val tid = 44
-        // prepared has not been called
-        replicator ! TwoPhaseCommitCommit(tid)
-        expectMsg(TwoPhaseCommitCommitError("no transaction with id " + tid + ": prepare not called or wrong transaction id", None))
-
-        // call prepare
-        replicator ! TwoPhaseCommitPrepare(tid)
-        expectMsg(TwoPhaseCommitPrepareSuccess(None))
-
-        // subscribe key
-        val changedProbe = TestProbe()
-        replicator ! Subscribe(KeyA, changedProbe.ref)
-        replicator ! Get(KeyA, ReadLocal)
-        expectMsg(NotFound(KeyA, None))
-
-        // update key
-        val c3 = GCounter() :+ 3
-
-        replicator ! Update(KeyA, GCounter(), WriteLocal, None, Option(tid))(_ :+ 3)
-        expectMsg(UpdateSuccess(KeyA, None))
-
-        replicator ! Get(KeyA, ReadLocal, None, Option(tid))
-        expectMsg(GetSuccess(KeyA, None)(c3)).dataValue should be(c3)
-//        changedProbe.expectMsg(Changed(KeyA)(c3)).dataValue should be(c3)
-
-        // commit
-        replicator ! TwoPhaseCommitCommit(tid)
-        expectMsg(TwoPhaseCommitCommitSuccess(None))
-        changedProbe.expectMsg(Changed(KeyA)(c3)).dataValue should be(c3)
-
-        // second commit should fail
-        replicator ! TwoPhaseCommitCommit(tid)
-        expectMsg(TwoPhaseCommitCommitError("no transaction with id " + tid + ": prepare not called or wrong transaction id", None))
-      }
-    }
-
-    "handle abort" in {
-      join(first, first)
-
-      runOn(first) {
-
-        within(5.seconds) {
-          awaitAssert {
-            replicator ! GetReplicaCount
-            expectMsg(ReplicaCount(1))
-          }
-        }
-
-        val tid = 45
-
-        // call prepare
-        replicator ! TwoPhaseCommitPrepare(tid)
-        expectMsg(TwoPhaseCommitPrepareSuccess(None))
-
-        // subscribe key
-        val changedProbe = TestProbe()
-        replicator ! Subscribe(KeyB, changedProbe.ref)
-        replicator ! Get(KeyB, ReadLocal)
-        expectMsg(NotFound(KeyB, None))
-
-        // update key
-        val c3 = GCounter() :+ 3
-
-        replicator ! Update(KeyB, GCounter(), WriteLocal, None, Option(tid))(_ :+ 3)
-        expectMsg(UpdateSuccess(KeyB, None))
-
-        // get with transaction context
-        replicator ! Get(KeyB, ReadLocal, None, Option(tid))
-        expectMsg(GetSuccess(KeyB, None)(c3)).dataValue should be(c3)
-
-        // get without transaction context
-        replicator ! Get(KeyB, ReadLocal)
-        expectMsg(NotFound(KeyB, None))
-
-        // abort
-        replicator ! TwoPhaseCommitAbort(tid)
-        expectMsg(TwoPhaseCommitAbortSuccess(None))
-
-        replicator ! Get(KeyB, ReadLocal, None, Option(tid))
-        expectMsg(NotFound(KeyB, None))
-      }
-
-      enterBarrierAfterTestStep()
+      replicator ! TwoPhaseCommitPrepare(tid)
+      expectMsg(TwoPhaseCommitPrepareError("Transaction id " + tid + " already inflight", None))
     }
   }
 
-  "transaction abort without prior prepare" in {
-    replicator ! TwoPhaseCommitAbort(42)
-    expectMsg(TwoPhaseCommitAbortSuccess(None))
+  "2PC abort" must {
+    "succeed without prior prepare" in {
+      replicator ! TwoPhaseCommitAbort(42)
+      expectMsg(TwoPhaseCommitAbortSuccess(None))
+    }
+
+    "succeed with prior prepare while transaction is empty" in {
+      val tid = 42
+
+      replicator ! TwoPhaseCommitPrepare(tid)
+      expectMsg(TwoPhaseCommitPrepareSuccess(None))
+
+      replicator ! TwoPhaseCommitAbort(tid)
+      expectMsg(TwoPhaseCommitAbortSuccess(None))
+    }
+
+    "not modify data after abort" in {
+      val tid = 42
+
+      // prepare
+      replicator ! TwoPhaseCommitPrepare(tid)
+      expectMsg(TwoPhaseCommitPrepareSuccess(None))
+
+      // KeyA should not be found
+      replicator ! Get(KeyB, ReadLocal)
+      expectMsg(NotFound(KeyB, None))
+
+      // update key
+      val c3 = GCounter() :+ 3
+
+      replicator ! Update(KeyB, GCounter(), WriteLocal, None, Option(tid))(_ :+ 3)
+      expectMsg(UpdateSuccess(KeyB, None))
+
+      // get with transaction context
+      replicator ! Get(KeyB, ReadLocal, None, Option(tid))
+      expectMsg(GetSuccess(KeyB, None)(c3)).dataValue should be(c3)
+
+      // get without transaction context
+      replicator ! Get(KeyB, ReadLocal)
+      expectMsg(NotFound(KeyB, None))
+
+      // abort
+      replicator ! TwoPhaseCommitAbort(tid)
+      expectMsg(TwoPhaseCommitAbortSuccess(None))
+
+      // get with transaction context
+      replicator ! Get(KeyB, ReadLocal, None, Option(tid))
+      expectMsg(NotFound(KeyB, None))
+
+      // get without transaction context
+      replicator ! Get(KeyB, ReadLocal)
+      expectMsg(NotFound(KeyB, None))
+    }
   }
 
-  "transaction abort with prior prepare" in {
-    val tid = 42
+  "2PC commit" must {
+    val tid = 44
 
-    replicator ! TwoPhaseCommitPrepare(tid)
-    expectMsg(TwoPhaseCommitPrepareSuccess(None))
+    "fail if prepare has not been called" in {
+      replicator ! TwoPhaseCommitCommit(tid)
+      expectMsg(TwoPhaseCommitCommitError("no transaction with id " + tid + ": prepare not called or wrong transaction id", None))
+    }
 
-    replicator ! TwoPhaseCommitAbort(tid)
-    expectMsg(TwoPhaseCommitAbortSuccess(None))
+    "succeed with an empty transaction" in {
+      replicator ! TwoPhaseCommitPrepare(tid)
+      expectMsg(TwoPhaseCommitPrepareSuccess(None))
+
+      replicator ! TwoPhaseCommitCommit(tid)
+      expectMsg(TwoPhaseCommitCommitSuccess(None))
+    }
+
+    "modify data after commit" in {
+      // call prepare
+      replicator ! TwoPhaseCommitPrepare(tid)
+      expectMsg(TwoPhaseCommitPrepareSuccess(None))
+
+      // subscribe key
+      val changedProbe = TestProbe()
+      replicator ! Subscribe(KeyA, changedProbe.ref)
+      replicator ! Get(KeyA, ReadLocal)
+      expectMsg(NotFound(KeyA, None))
+
+      // update key
+      val c3 = GCounter() :+ 3
+
+      replicator ! Update(KeyA, GCounter(), WriteLocal, None, Option(tid))(_ :+ 3)
+      expectMsg(UpdateSuccess(KeyA, None))
+
+      // get with transaction context
+      replicator ! Get(KeyA, ReadLocal, None, Option(tid))
+      expectMsg(GetSuccess(KeyA, None)(c3)).dataValue should be(c3)
+
+      // get without transaction context
+      replicator ! Get(KeyA, ReadLocal)
+      expectMsg(NotFound(KeyA, None))
+
+      // commit
+      replicator ! TwoPhaseCommitCommit(tid)
+      expectMsg(TwoPhaseCommitCommitSuccess(None))
+      changedProbe.expectMsg(Changed(KeyA)(c3)).dataValue should be(c3)
+
+      // second commit should fail
+      replicator ! TwoPhaseCommitCommit(tid)
+      expectMsg(TwoPhaseCommitCommitError("no transaction with id " + tid + ": prepare not called or wrong transaction id", None))
+    }
   }
 
 //  "Transaction" must {
