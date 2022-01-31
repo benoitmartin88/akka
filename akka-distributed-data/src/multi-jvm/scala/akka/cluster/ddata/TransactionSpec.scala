@@ -5,8 +5,9 @@
 package akka.cluster.ddata
 
 import akka.cluster.Cluster
+import akka.cluster.ddata.Transaction.TransactionId
 import akka.remote.testconductor.RoleName
-import akka.remote.testkit.{ MultiNodeConfig, MultiNodeSpec }
+import akka.remote.testkit.{MultiNodeConfig, MultiNodeSpec}
 import akka.testkit._
 import com.typesafe.config.ConfigFactory
 
@@ -68,10 +69,9 @@ class TransactionSpec extends MultiNodeSpec(ReplicatorSpec) with STMultiNodeSpec
     enterBarrier(from.name + "-joined")
   }
 
-
   "2PC prepare" must {
     "handle already existing transaction" in {
-      val tid = 41
+      val tid = "41"
 
       replicator ! TwoPhaseCommitPrepare(tid)
       expectMsg(TwoPhaseCommitPrepareSuccess(None))
@@ -83,12 +83,12 @@ class TransactionSpec extends MultiNodeSpec(ReplicatorSpec) with STMultiNodeSpec
 
   "2PC abort" must {
     "succeed without prior prepare" in {
-      replicator ! TwoPhaseCommitAbort(42)
+      replicator ! TwoPhaseCommitAbort("42")
       expectMsg(TwoPhaseCommitAbortSuccess(None))
     }
 
     "succeed with prior prepare while transaction is empty" in {
-      val tid = 42
+      val tid = "42"
 
       replicator ! TwoPhaseCommitPrepare(tid)
       expectMsg(TwoPhaseCommitPrepareSuccess(None))
@@ -98,7 +98,7 @@ class TransactionSpec extends MultiNodeSpec(ReplicatorSpec) with STMultiNodeSpec
     }
 
     "not modify data after abort" in {
-      val tid = 42
+      val tid = "42"
 
       // prepare
       replicator ! TwoPhaseCommitPrepare(tid)
@@ -137,11 +137,14 @@ class TransactionSpec extends MultiNodeSpec(ReplicatorSpec) with STMultiNodeSpec
   }
 
   "2PC commit" must {
-    val tid = 44
+    val tid = "44"
 
     "fail if prepare has not been called" in {
       replicator ! TwoPhaseCommitCommit(tid)
-      expectMsg(TwoPhaseCommitCommitError("no transaction with id " + tid + ": prepare not called or wrong transaction id", None))
+      expectMsg(
+        TwoPhaseCommitCommitError(
+          "no transaction with id " + tid + ": prepare not called or wrong transaction id",
+          None))
     }
 
     "succeed with an empty transaction" in {
@@ -184,12 +187,26 @@ class TransactionSpec extends MultiNodeSpec(ReplicatorSpec) with STMultiNodeSpec
 
       // second commit should fail
       replicator ! TwoPhaseCommitCommit(tid)
-      expectMsg(TwoPhaseCommitCommitError("no transaction with id " + tid + ": prepare not called or wrong transaction id", None))
+      expectMsg(
+        TwoPhaseCommitCommitError(
+          "no transaction with id " + tid + ": prepare not called or wrong transaction id",
+          None))
     }
   }
 
-//  "Transaction" must {
-//
+  "Transaction prepare" must {
+
+    "generate a correct id" in {
+      val t1 = new Transaction(replicator, () => None)
+      t1.id shouldBe a[TransactionId]
+      t1.id should not be None
+
+      val t2 = new Transaction(replicator, () => None)
+      t1.id should not be None
+
+      (t1.id should not).equal(t2.id)
+    }
+
 //    "work in single node cluster" in {
 //      join(first, first)
 //
@@ -225,6 +242,6 @@ class TransactionSpec extends MultiNodeSpec(ReplicatorSpec) with STMultiNodeSpec
 //
 //      enterBarrierAfterTestStep()
 //    }
-//  }
+  }
 
 }

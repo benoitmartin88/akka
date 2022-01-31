@@ -49,6 +49,7 @@ import akka.cluster.UniqueAddress
 import akka.cluster.ddata.DurableStore._
 import akka.cluster.ddata.Key.KeyId
 import akka.cluster.ddata.Key.KeyR
+import akka.cluster.ddata.Transaction.TransactionId
 import akka.dispatch.Dispatchers
 import akka.event.Logging
 import akka.remote.RARP
@@ -590,19 +591,18 @@ object Replicator {
    * @param tid Transaction Id
    * @param request The optional request context is included in the reply messages. This is a convenient way to pass contextual information (e.g. original sender) without having to use ask or maintain local correlation data structures.
    */
-  final case class TwoPhaseCommitPrepare(tid: Int, request: Option[Any] = None)
+  final case class TwoPhaseCommitPrepare(tid: TransactionId, request: Option[Any] = None)
     extends Command[ReplicatedData]
       with ReplicatorMessage {
+    /**
+     * Java API: `Get` value from local `Replicator`, i.e. `ReadLocal` consistency.
+     */
+    def this(tid: TransactionId) = this(tid, None)
 
     /**
      * Java API: `Get` value from local `Replicator`, i.e. `ReadLocal` consistency.
      */
-    def this(tid: Int) = this(tid, None)
-
-    /**
-     * Java API: `Get` value from local `Replicator`, i.e. `ReadLocal` consistency.
-     */
-    def this(tid: Int, request: Optional[Any]) =
+    def this(tid: TransactionId, request: Optional[Any]) =
       this(tid, Option(request.orElse(null)))
 
     override def key: Key[ReplicatedData] = GCounterKey("A")  // TODO: this is a hack !
@@ -633,17 +633,17 @@ object Replicator {
    * @param tid Transaction Id
    * @param request The optional request context is included in the reply messages. This is a convenient way to pass contextual information (e.g. original sender) without having to use ask or maintain local correlation data structures.
    */
-  final case class TwoPhaseCommitCommit(tid: Int, request: Option[Any] = None) extends Command[ReplicatedData] with ReplicatorMessage {
+  final case class TwoPhaseCommitCommit(tid: TransactionId, request: Option[Any] = None) extends Command[ReplicatedData] with ReplicatorMessage {
 
     /**
      * Java API: `Get` value from local `Replicator`, i.e. `ReadLocal` consistency.
      */
-    def this(tid: Int) = this(tid, None)
+    def this(tid: TransactionId) = this(tid, None)
 
     /**
      * Java API: `Get` value from local `Replicator`, i.e. `ReadLocal` consistency.
      */
-    def this(tid: Int, request: Optional[Any]) =
+    def this(tid: TransactionId, request: Optional[Any]) =
       this(tid, Option(request.orElse(null)))
 
     override def key: Key[ReplicatedData] = GCounterKey("A")  // TODO: this is a hack !
@@ -672,17 +672,17 @@ object Replicator {
    * @param tid Transaction Id
    * @param request The optional request context is included in the reply messages. This is a convenient way to pass contextual information (e.g. original sender) without having to use ask or maintain local correlation data structures.
    */
-  final case class TwoPhaseCommitAbort(tid: Int, request: Option[Any] = None) extends Command[ReplicatedData] with ReplicatorMessage {
+  final case class TwoPhaseCommitAbort(tid: TransactionId, request: Option[Any] = None) extends Command[ReplicatedData] with ReplicatorMessage {
 
     /**
      * Java API: `Get` value from local `Replicator`, i.e. `ReadLocal` consistency.
      */
-    def this(tid: Int) = this(tid, None)
+    def this(tid: TransactionId) = this(tid, None)
 
     /**
      * Java API: `Get` value from local `Replicator`, i.e. `ReadLocal` consistency.
      */
-    def this(tid: Int, request: Optional[Any]) =
+    def this(tid: TransactionId, request: Optional[Any]) =
       this(tid, Option(request.orElse(null)))
 
     override def key: Key[ReplicatedData] = GCounterKey("A")  // TODO: this is a hack !
@@ -708,7 +708,7 @@ object Replicator {
    * way to pass contextual information (e.g. original sender) without having to use `ask`
    * or maintain local correlation data structures.
    */
-  final case class Get[A <: ReplicatedData](key: Key[A], consistency: ReadConsistency, request: Option[Any] = None, tid: Option[Int] = None)
+  final case class Get[A <: ReplicatedData](key: Key[A], consistency: ReadConsistency, request: Option[Any] = None, tid: Option[TransactionId] = None)
       extends Command[A]
       with ReplicatorMessage {
 
@@ -847,7 +847,7 @@ object Replicator {
         initial: A,
         writeConsistency: WriteConsistency,
         request: Option[Any] = None,
-        tid: Option[Int] = None)(modify: A => A): Update[A] =
+        tid: Option[TransactionId] = None)(modify: A => A): Update[A] =
       Update(key, writeConsistency, request, tid)(modifyWithInitial(initial, modify))
 
     def apply[A <: ReplicatedData](key: Key[A], writeConsistency: WriteConsistency, request: Option[Any])(
@@ -876,7 +876,7 @@ object Replicator {
    * function that only uses the data parameter and stable fields from enclosing scope. It must
    * for example not access `sender()` reference of an enclosing actor.
    */
-  final case class Update[A <: ReplicatedData](key: Key[A], writeConsistency: WriteConsistency, request: Option[Any], tid: Option[Int])(
+  final case class Update[A <: ReplicatedData](key: Key[A], writeConsistency: WriteConsistency, request: Option[Any], tid: Option[TransactionId])(
       val modify: Option[A] => A)
       extends Command[A]
       with NoSerializationVerificationNeeded {
@@ -1604,7 +1604,7 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
 
   // inflight data (uncommited transaction)
 //  key: KeyR, writeConsistency: WriteConsistency, envelope: DataEnvelope, req: Option[Any], delta: Option[ReplicatedDelta]
-  var inflightEntries = mutable.HashMap.empty[Int, mutable.ListBuffer[(KeyR, WriteConsistency, DataEnvelope, Option[Any], Option[ReplicatedDelta])]]
+  var inflightEntries = mutable.HashMap.empty[String, mutable.ListBuffer[(KeyR, WriteConsistency, DataEnvelope, Option[Any], Option[ReplicatedDelta])]]
   // the actual data
   var dataEntries = Map.empty[KeyId, (DataEnvelope, Digest)]
   // keys that have changed, Changed event published to subscribers on FlushChanges
@@ -1809,7 +1809,7 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
     case TestFullStateGossip(enabled)  => fullStateGossipEnabled = enabled
   }
 
-  def receiveTwoPhaseCommitPrepare(tid: Int, req: Option[Any]): Unit = {
+  def receiveTwoPhaseCommitPrepare(tid: TransactionId, req: Option[Any]): Unit = {
     log.info("Received TwoPhaseCommitPrepare for transaction [{}].", tid)
 
     val reply = if (inflightEntries.contains(tid)) {
@@ -1822,7 +1822,7 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
     replyTo ! reply
   }
 
-  def receiveTwoPhaseCommitCommit(tid: Int, req: Option[Any]): Unit = {
+  def receiveTwoPhaseCommitCommit(tid: TransactionId, req: Option[Any]): Unit = {
     log.info("Received TwoPhaseCommitCommit for transaction [{}].", tid)
 
     if (!inflightEntries.contains(tid)) {
@@ -1839,13 +1839,13 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
     }
   }
 
-  def receiveTwoPhaseCommitAbort(tid: Int, req: Option[Any]): Unit = {
+  def receiveTwoPhaseCommitAbort(tid: TransactionId, req: Option[Any]): Unit = {
     log.info("Received TwoPhaseCommitAbort for transaction [{}].", tid)
     inflightEntries.remove(tid)
     replyTo ! TwoPhaseCommitAbortSuccess(req)
   }
 
-  def receiveGet(key: KeyR, consistency: ReadConsistency, req: Option[Any], tid: Option[Int]): Unit = {
+  def receiveGet(key: KeyR, consistency: ReadConsistency, req: Option[Any], tid: Option[TransactionId]): Unit = {
     log.debug("Received Get for key [{}] on transaction [{}].", key, tid)
 
     if (tid.isEmpty) {
@@ -1907,7 +1907,7 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
   def isLocalSender(): Boolean = !replyTo.path.address.hasGlobalScope
 
   def receiveUpdate[A <: ReplicatedData](
-      tid: Option[Int],
+      tid: Option[TransactionId],
       key: KeyR,
       modify: Option[A] => A,
       writeConsistency: WriteConsistency,

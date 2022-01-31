@@ -7,9 +7,14 @@ package akka.cluster.ddata
 import akka.actor.ActorRef
 import akka.cluster.ddata.Replicator.TwoPhaseCommitPrepare
 
-class Transaction(replicator: ActorRef ,operations: () => Unit) {
+object Transaction {
+  private[akka] type TransactionId = String
+}
 
-  val id = 0  // TODO
+final case class Transaction(replicator: ActorRef, operations: () => Unit) {
+  import akka.cluster.ddata.Transaction.TransactionId
+
+  val id: TransactionId = java.util.UUID.randomUUID.toString   // TODO: 128 bits can be reduced. eg: Snowflake ?
 
   /**
    * Blocking call because of 2-phase-commit.
