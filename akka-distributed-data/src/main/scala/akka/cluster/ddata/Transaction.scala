@@ -4,7 +4,7 @@
 
 package akka.cluster.ddata
 
-import akka.actor.ActorRef
+import akka.actor.{ ActorContext, ActorRef }
 import akka.cluster.ddata.Replicator._
 import akka.pattern.ask
 import akka.util.Timeout
@@ -43,8 +43,15 @@ object Transaction {
  * - auto commit at the end of the transaction scope
  */
 final case class Transaction(replicator: ActorRef, actor: ActorRef, operations: (Transaction.Context) => Unit) {
-  import akka.cluster.ddata.Transaction.TransactionId
-  import akka.cluster.ddata.Transaction.Context
+  import akka.cluster.ddata.Transaction.{ Context, TransactionId }
+
+  def apply(actorContext: ActorContext, operations: (Transaction.Context) => Unit): Transaction = {
+    val system = actorContext.system
+    val replicator = system.actorOf(
+      Replicator.props(ReplicatorSettings(system).withGossipInterval(1.second).withMaxDeltaElements(10)),
+      "replicator")
+    Transaction(replicator, actorContext.self, operations)
+  }
 
   val context: Context = Context(replicator, actor)
   val id: TransactionId = context.tid
