@@ -33,8 +33,9 @@ class TransactionSpecMultiJvmNode1 extends TransactionSpec
 class TransactionSpecMultiJvmNode2 extends TransactionSpec
 class TransactionSpecMultiJvmNode3 extends TransactionSpec
 
-class TransactionSpec extends MultiNodeSpec(ReplicatorSpec) with STMultiNodeSpec with ImplicitSender {
+class TransactionSpec extends MultiNodeSpec(TransactionSpec) with STMultiNodeSpec with ImplicitSender {
   import Replicator._
+  import TransactionSpec._
 
   override def initialParticipants = roles.size
 
@@ -44,15 +45,9 @@ class TransactionSpec extends MultiNodeSpec(ReplicatorSpec) with STMultiNodeSpec
     Replicator.props(ReplicatorSettings(system).withGossipInterval(1.second).withMaxDeltaElements(10)),
     "replicator")
   val timeout = 3.seconds.dilated
-  val writeTwo = WriteTo(2, timeout)
-  val writeMajority = WriteMajority(timeout)
-  val writeAll = WriteAll(timeout)
-  val readTwo = ReadFrom(2, timeout)
-  val readAll = ReadAll(timeout)
-  val readMajority = ReadMajority(timeout)
 
-  val KeyA = GCounterKey("A")
-  val KeyB = GCounterKey("B")
+//  val KeyA = GCounterKey("A")
+//  val KeyB = GCounterKey("B")
 
   var afterCounter = 0
   def enterBarrierAfterTestStep(): Unit = {
@@ -99,6 +94,7 @@ class TransactionSpec extends MultiNodeSpec(ReplicatorSpec) with STMultiNodeSpec
 
     "not modify data after abort" in {
       val tid = "42"
+      val KeyB = GCounterKey("B")
 
       // prepare
       replicator ! TwoPhaseCommitPrepare(tid)
@@ -156,6 +152,8 @@ class TransactionSpec extends MultiNodeSpec(ReplicatorSpec) with STMultiNodeSpec
     }
 
     "modify data after commit" in {
+      val KeyA = GCounterKey("A")
+
       // call prepare
       replicator ! TwoPhaseCommitPrepare(tid)
       expectMsg(TwoPhaseCommitPrepareSuccess(None))
@@ -191,20 +189,97 @@ class TransactionSpec extends MultiNodeSpec(ReplicatorSpec) with STMultiNodeSpec
         TwoPhaseCommitCommitError(
           "no transaction with id " + tid + ": prepare not called or wrong transaction id",
           None))
+
+      // TODO Get
     }
   }
 
-  "Transaction prepare" must {
+  "Transaction" must {
 
     "generate a correct id" in {
-      val t1 = new Transaction(replicator, () => None)
+      val t1 = new Transaction(replicator, testActor, (_) => None)
       t1.id shouldBe a[TransactionId]
       t1.id should not be None
 
-      val t2 = new Transaction(replicator, () => None)
+      val t2 = new Transaction(replicator, testActor, (_) => None)
       t1.id should not be None
 
       (t1.id should not).equal(t2.id)
+    }
+
+    "commit an empty without error when empty" in {
+      val t1 = new Transaction(replicator, testActor, (_) => {
+      })
+      t1.commit() should be(true)
+
+      val t2 = new Transaction(replicator, testActor, (_) => None)
+      t2.commit() should be(true)
+    }
+
+    "replicate updates" in {
+      val KEY = FlagKey("F")
+      var f1 = Flag()
+
+      join(first, first)
+      join(second, first)
+
+      runOn(first, second) {
+        within(20.seconds) {
+          awaitAssert {
+            replicator ! GetReplicaCount
+            expectMsg(ReplicaCount(2))
+          }
+        }
+      }
+
+      enterBarrier("2-nodes")
+
+      runOn(first) {
+        f1.enabled should be(false)
+
+        val t1 = new Transaction(replicator, testActor, (ctx) => {
+          f1.enabled should be(false)
+          f1 = f1.switchOn
+          f1.enabled should be(true)
+
+          // update
+          //        ctx.update(KEY)(_.get.switchOn)
+          ctx.update(KEY)(f1)
+          expectMsg(UpdateSuccess(KEY, None))
+
+          // read own write
+          ctx.get(KEY)
+          expectMsg(GetSuccess(KEY, None)(f1)).dataValue should be(f1)
+        })
+
+        t1.commit() should be(true)
+
+        // local read from second transaction
+        val t2 = new Transaction(replicator, testActor, (ctx) => {
+          ctx.get(KEY)
+          expectMsg(GetSuccess(KEY, None)(f1)).dataValue should be(f1)
+        })
+
+        t2.commit() should be(true)
+      }
+
+      enterBarrier("update flag")
+
+      runOn(second) {
+        val t = new Transaction(replicator, testActor, (ctx) => {
+
+          within(5.seconds) {
+            awaitAssert {
+              ctx.get(KEY)
+              expectMsg(GetSuccess(KEY, None)(f1))
+            }
+          }
+        })
+
+        t.commit() should be(true)
+      }
+
+      enterBarrierAfterTestStep()
     }
 
 //    "work in single node cluster" in {

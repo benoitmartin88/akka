@@ -22,23 +22,7 @@ import scala.util.Try
 import scala.util.control.NoStackTrace
 import scala.util.control.NonFatal
 import com.typesafe.config.Config
-import akka.actor.Actor
-import akka.actor.ActorInitializationException
-import akka.actor.ActorLogging
-import akka.actor.ActorRef
-import akka.actor.ActorSelection
-import akka.actor.ActorSystem
-import akka.actor.Address
-import akka.actor.Cancellable
-import akka.actor.DeadLetterSuppression
-import akka.actor.Deploy
-import akka.actor.ExtendedActorSystem
-import akka.actor.NoSerializationVerificationNeeded
-import akka.actor.OneForOneStrategy
-import akka.actor.Props
-import akka.actor.ReceiveTimeout
-import akka.actor.SupervisorStrategy
-import akka.actor.Terminated
+import akka.actor.{Actor, ActorInitializationException, ActorLogging, ActorRef, ActorSelection, ActorSystem, Address, Cancellable, DeadLetterActorRef, DeadLetterSuppression, Deploy, ExtendedActorSystem, NoSerializationVerificationNeeded, OneForOneStrategy, Props, ReceiveTimeout, SupervisorStrategy, Terminated}
 import akka.annotation.InternalApi
 import akka.cluster.Cluster
 import akka.cluster.ClusterEvent._
@@ -1813,8 +1797,10 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
     log.info("Received TwoPhaseCommitPrepare for transaction [{}].", tid)
 
     val reply = if (inflightEntries.contains(tid)) {
+      log.debug("Transaction id " + tid + " already inflight")
       TwoPhaseCommitPrepareError("Transaction id " + tid + " already inflight", req)
     } else {
+      log.debug("Transaction id " + tid + " prepare OK")
       inflightEntries.update(tid, new mutable.ListBuffer())
       TwoPhaseCommitPrepareSuccess(req)
     }
@@ -1830,10 +1816,12 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
     } else {
 
       for ((key, writeConsistency, envelope, req, delta) <- inflightEntries(tid)) {
+        log.debug("[{}] - key= [{}] handleUpdate() ", tid, key)
         handleUpdate(key, writeConsistency, envelope, req, delta, sendReply = false)
       }
 
       inflightEntries.remove(tid) // TODO: what if there is an error ?
+      assert(!inflightEntries.contains(tid))
 
       replyTo ! TwoPhaseCommitCommitSuccess(req)
     }
@@ -1846,7 +1834,7 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
   }
 
   def receiveGet(key: KeyR, consistency: ReadConsistency, req: Option[Any], tid: Option[TransactionId]): Unit = {
-    log.debug("Received Get for key [{}] on transaction [{}].", key, tid)
+    log.debug("Received Get for key [{}] on transaction [{}]. replyTo=[{}]", key, tid, replyTo)
 
     if (tid.isEmpty) {
       // not a transaction
@@ -1854,11 +1842,22 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
     } else {
       // in a transaction
       if (inflightEntries.contains(tid.get)) {
-        val data = inflightEntries(tid.get).find(_._1 == key).get._3.data // find first entry for given key
-        replyTo ! GetSuccess(key, req)(data)
+        val reply = if(inflightEntries(tid.get).exists(_._1 == key)) {
+          // found value
+          log.debug("[{}] - found value for key [{}].", tid, key)
+
+          val data = inflightEntries(tid.get).find(_._1 == key).get._3.data // find first entry for given key
+          GetSuccess(key, req)(data)
+        } else {
+          // no value for key in inflightEntries, check local
+          log.debug("[{}] - could not find a value for key [{}] in inflightEntries. Checking local entries.", tid, key)
+
+          handleGet(key, ReadLocal, req)
+        }
+        replyTo ! reply
       } else {
         // not inflight, check local
-        handleGet(key, consistency, req)
+        handleGet(key, ReadLocal, req)
       }
     }
   }
@@ -1944,7 +1943,8 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
         log.debug("Received Update for deleted key [{}].", key)
         replyTo ! UpdateDataDeleted(key, req)
       case Success((envelope, delta)) =>
-        log.debug("Received Update for key [{}] on transaction [{}].", key, tid)
+        log.debug("[{}] - Received Update for key [{}].", tid, key)
+        assert(!replyTo.isInstanceOf[DeadLetterActorRef])
 
         if (tid.isEmpty) {
           // not in transaction or doing a commit
@@ -1953,6 +1953,7 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
           // in a transaction: save for later
           inflightEntries(tid.get) += ((key, writeConsistency, envelope, req, delta))
           replyTo ! UpdateSuccess(key, req)
+          log.debug("[{}] - Update successful for key [{}]. replyTo=[{}]", tid, key, replyTo)
         }
 
       case Failure(e) =>
