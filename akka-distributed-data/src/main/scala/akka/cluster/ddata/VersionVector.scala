@@ -5,10 +5,8 @@
 package akka.cluster.ddata
 
 import java.util.concurrent.atomic.AtomicLong
-
 import scala.annotation.tailrec
 import scala.collection.immutable.TreeMap
-
 import akka.annotation.InternalApi
 import akka.cluster.Cluster
 import akka.cluster.UniqueAddress
@@ -400,4 +398,16 @@ final case class ManyVersionVector(versions: TreeMap[UniqueAddress, Long]) exten
   /** INTERNAL API */
   @InternalApi override private[akka] def estimatedSize: Int =
     versions.size * (EstimatedSize.UniqueAddress + EstimatedSize.LongValue)
+}
+
+object VersionVectorOrdering extends Ordering[VersionVector] {
+  import VersionVector.{Same, Before, After, Concurrent}
+  def compare(key1:VersionVector, key2:VersionVector) = {
+    key1.compareTo(key2) match {
+      case Same | Concurrent => 0
+      case Before => -1
+      case After => 1
+      case _ => -1
+    }
+  }
 }

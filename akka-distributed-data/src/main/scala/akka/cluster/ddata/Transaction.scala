@@ -16,11 +16,11 @@ import scala.concurrent.duration.DurationInt
 object Transaction {
   private[akka] type TransactionId = String
 
-  final case class Context(replicator: ActorRef, actor: ActorRef) {
+  final case class Context(replicator: ActorRef, actor: ActorRef, version: VersionVector = VersionVector.empty) extends Serializable {
     val tid: TransactionId = java.util.UUID.randomUUID.toString // TODO: 128 bits can be reduced. eg: Snowflake ?
 
     def get[T <: ReplicatedData](key: Key[T]): Unit = {
-      replicator.tell(Get(key, ReadLocal, None, Option(tid)), actor)
+      replicator.tell(Get(key, ReadLocal, None, Option(this)), actor)
     }
 
 //    def update[T <: ReplicatedData](key: Key[T], initial: T)(modify: T => T): Unit = {

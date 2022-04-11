@@ -692,7 +692,7 @@ object Replicator {
    * way to pass contextual information (e.g. original sender) without having to use `ask`
    * or maintain local correlation data structures.
    */
-  final case class Get[A <: ReplicatedData](key: Key[A], consistency: ReadConsistency, request: Option[Any] = None, tid: Option[TransactionId] = None)
+  final case class Get[A <: ReplicatedData](key: Key[A], consistency: ReadConsistency, request: Option[Any] = None, transaction: Option[Transaction.Context] = None)
       extends Command[A]
       with ReplicatorMessage {
 
@@ -1069,7 +1069,8 @@ object Replicator {
     final case class DataEnvelope(
         data: ReplicatedData,
         pruning: Map[UniqueAddress, PruningState] = Map.empty,
-        deltaVersions: VersionVector = VersionVector.empty)
+        deltaVersions: VersionVector = VersionVector.empty,
+        causalVersions: VersionVector = VersionVector.empty)
         extends ReplicatorMessage {
 
       import PruningState._
@@ -1291,10 +1292,10 @@ object Replicator {
  * <a href="http://www.ustream.tv/recorded/61448875">The Final Causal Frontier</a>
  * and <a href="https://www.infoq.com/presentations/CRDT/">Eventually Consistent Data Structures</a>
  * talk by Sean Cribbs and and the
- * <a href="https://www.microsoft.com/en-us/research/video/strong-eventual-consistency-and-conflict-free-replicated-data-types/">talk by Mark Shapiro</a>
+ * <a href="https://www.microsoft.com/en-us/research/video/strong-eventual-consistency-and-conflict-free-replicated-data-types/">talk by Marc Shapiro</a>
  * and read the excellent paper <a href="https://hal.inria.fr/file/index/docid/555588/filename/techreport.pdf">
  * A comprehensive study of Convergent and Commutative Replicated Data Types</a>
- * by Mark Shapiro et. al.
+ * by Marc Shapiro et. al.
  *
  * The `Replicator` actor must be started on each node in the cluster, or group of
  * nodes tagged with a specific role. It communicates with other `Replicator` instances
@@ -1553,6 +1554,8 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
           .scheduleWithFixedDelay(deltaPropagationInterval, deltaPropagationInterval, self, DeltaPropagationTick))
     } else None
 
+  val snapshotManager: SnapshotManager = SnapshotManager(/*selfUniqueAddress*/)
+
   // cluster nodes, doesn't contain selfAddress, doesn't contain joining and weaklyUp
   var nodes: immutable.SortedSet[UniqueAddress] = immutable.SortedSet.empty
 
@@ -1586,7 +1589,7 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
   var allReachableClockTime = 0L
   var unreachable = Set.empty[UniqueAddress]
 
-  // inflight data (uncommited transaction)
+  // inflight data (uncommitted transaction)
 //  key: KeyR, writeConsistency: WriteConsistency, envelope: DataEnvelope, req: Option[Any], delta: Option[ReplicatedDelta]
   var inflightEntries = mutable.HashMap.empty[String, mutable.ListBuffer[(KeyR, WriteConsistency, DataEnvelope, Option[Any], Option[ReplicatedDelta])]]
   // the actual data
@@ -1768,7 +1771,7 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
     case TwoPhaseCommitPrepare(tid, req)  => receiveTwoPhaseCommitPrepare(tid, req)
     case TwoPhaseCommitCommit(tid, req)   => receiveTwoPhaseCommitCommit(tid, req)
     case TwoPhaseCommitAbort(tid, req)    => receiveTwoPhaseCommitAbort(tid, req)
-    case Get(key, consistency, req, tid)    => receiveGet(key, consistency, req, tid)
+    case Get(key, consistency, req, t)    => receiveGet(key, consistency, req, t)
     case u @ Update(key, writeC, req, tid)  => receiveUpdate(tid, key, u.modify, writeC, req)
     case ReadRepair(key, envelope)     => receiveReadRepair(key, envelope)
     case FlushChanges                  => receiveFlushChanges()
@@ -1833,41 +1836,51 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
     replyTo ! TwoPhaseCommitAbortSuccess(req)
   }
 
-  def receiveGet(key: KeyR, consistency: ReadConsistency, req: Option[Any], tid: Option[TransactionId]): Unit = {
-    log.debug("Received Get for key [{}] on transaction [{}]. replyTo=[{}]", key, tid, replyTo)
+  def receiveGet(key: KeyR, consistency: ReadConsistency, req: Option[Any], trxn: Option[Transaction.Context]): Unit = {
+    log.debug("Received Get for key [{}] on transaction [{}]. replyTo=[{}]", key, trxn, replyTo)
 
-    if (tid.isEmpty) {
+    if (trxn.isEmpty) {
       // not a transaction
       handleGet(key, consistency, req)
     } else {
       // in a transaction
-      if (inflightEntries.contains(tid.get)) {
-        val reply = if(inflightEntries(tid.get).exists(_._1 == key)) {
-          // found value
-          log.debug("[{}] - found value for key [{}].", tid, key)
+      val tid = trxn.get.tid
 
-          val data = inflightEntries(tid.get).find(_._1 == key).get._3.data // find first entry for given key
+      if (inflightEntries.contains(tid)) {
+        val reply = if(inflightEntries(tid).exists(_._1 == key)) {
+          // found value
+          log.debug("[{}] - found value for key [{}].", trxn, key)
+
+          val data = inflightEntries(tid).find(_._1 == key).get._3.data // find first entry for given key
           GetSuccess(key, req)(data)
         } else {
           // no value for key in inflightEntries, check local
           log.debug("[{}] - could not find a value for key [{}] in inflightEntries. Checking local entries.", tid, key)
 
-          handleGet(key, ReadLocal, req)
+          handleGet(key, ReadLocal, req, trxn)
         }
-        replyTo ! reply
+        replyTo ! reply // TODO: might be wrong, double send reply
       } else {
         // not inflight, check local
-        handleGet(key, ReadLocal, req)
+        handleGet(key, ReadLocal, req, trxn)
       }
     }
   }
 
-  def handleGet(key: KeyR, consistency: ReadConsistency, req: Option[Any]): Unit = {
+  def handleGet(key: KeyR, consistency: ReadConsistency, req: Option[Any], trxn: Option[Transaction.Context] = None): Unit = {
+
+    if(trxn.nonEmpty) {
+      val res = snapshotManager.get(trxn.get.version, key.id)
+      log.debug(">>>> " + res)
+    }
+
+
+
     val localValue = getData(key.id)
     if (isLocalGet(consistency)) {
       val reply = localValue match {
-        case Some(DataEnvelope(DeletedData, _, _)) => GetDataDeleted(key, req)
-        case Some(DataEnvelope(data, _, _))        => GetSuccess(key, req)(data)
+        case Some(DataEnvelope(DeletedData, _, _, _)) => GetDataDeleted(key, req)
+        case Some(DataEnvelope(data, _, _, _))        => GetSuccess(key, req)(data)
         case None                                  => NotFound(key, req)
       }
       replyTo ! reply
@@ -1922,9 +1935,9 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
 
     Try {
       localValue match {
-        case Some(envelope @ DataEnvelope(DeletedData, _, _)) =>
+        case Some(envelope @ DataEnvelope(DeletedData, _, _, _)) =>
           (envelope, None)
-        case Some(envelope @ DataEnvelope(existing, _, _)) =>
+        case Some(envelope @ DataEnvelope(existing, _, _, _)) =>
           modify(Some(existing.asInstanceOf[A])) match {
             case d: DeltaReplicatedData if deltaCrdtEnabled =>
               (envelope.merge(d.resetDelta.asInstanceOf[existing.T]), deltaOrPlaceholder(d))
@@ -1939,7 +1952,7 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
           }
       }
     } match {
-      case Success((DataEnvelope(DeletedData, _, _), _)) =>
+      case Success((DataEnvelope(DeletedData, _, _, _), _)) =>
         log.debug("Received Update for deleted key [{}].", key)
         replyTo ! UpdateDataDeleted(key, req)
       case Success((envelope, delta)) =>
@@ -2054,8 +2067,8 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
   def write(key: KeyId, writeEnvelope: DataEnvelope): Option[DataEnvelope] = {
     getData(key) match {
       case someEnvelope @ Some(envelope) if envelope eq writeEnvelope => someEnvelope
-      case Some(DataEnvelope(DeletedData, _, _))                      => Some(DeletedEnvelope) // already deleted
-      case Some(envelope @ DataEnvelope(existingData @ _, _, _)) =>
+      case Some(DataEnvelope(DeletedData, _, _, _))                      => Some(DeletedEnvelope) // already deleted
+      case Some(envelope @ DataEnvelope(existingData @ _, _, _, _)) =>
         try {
           // DataEnvelope will mergeDelta when needed
           val merged = envelope.merge(writeEnvelope).addSeen(selfAddress)
@@ -2089,7 +2102,7 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
   def receiveGetKeyIds(): Unit = {
     val keys: Set[KeyId] = dataEntries.iterator
       .collect {
-        case (key, (DataEnvelope(data, _, _), _)) if data != DeletedData => key
+        case (key, (DataEnvelope(data, _, _, _), _)) if data != DeletedData => key
       }
       .to(immutable.Set)
     replyTo ! GetKeyIdsResult(keys)
@@ -2097,7 +2110,7 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
 
   def receiveDelete(key: KeyR, consistency: WriteConsistency, req: Option[Any]): Unit = {
     getData(key.id) match {
-      case Some(DataEnvelope(DeletedData, _, _)) =>
+      case Some(DataEnvelope(DeletedData, _, _, _)) =>
         // already deleted
         replyTo ! DataDeleted(key, req)
       case _ =>
@@ -2199,14 +2212,14 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
 
   def getDeltaSeqNr(key: KeyId, fromNode: UniqueAddress): Long =
     dataEntries.get(key) match {
-      case Some((DataEnvelope(_, _, deltaVersions), _)) => deltaVersions.versionAt(fromNode)
+      case Some((DataEnvelope(_, _, deltaVersions, _), _)) => deltaVersions.versionAt(fromNode)
       case None                                         => 0L
     }
 
   def isNodeRemoved(node: UniqueAddress, keys: Iterable[KeyId]): Boolean = {
     removedNodes.contains(node) || (keys.exists(key =>
       dataEntries.get(key) match {
-        case Some((DataEnvelope(_, pruning, _), _)) => pruning.contains(node)
+        case Some((DataEnvelope(_, pruning, _, _), _)) => pruning.contains(node)
         case None                                   => false
       }))
   }
@@ -2269,7 +2282,7 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
             log.debug("Skipping DeltaPropagation from [{}] because that node has been removed", fromNode.address)
         } else {
           deltas.foreach {
-            case (key, Delta(envelope @ DataEnvelope(_: RequiresCausalDeliveryOfDeltas, _, _), fromSeqNr, toSeqNr)) =>
+            case (key, Delta(envelope @ DataEnvelope(_: RequiresCausalDeliveryOfDeltas, _, _, _), fromSeqNr, toSeqNr)) =>
               val currentSeqNr = getDeltaSeqNr(key, fromNode)
               if (currentSeqNr >= toSeqNr) {
                 if (isDebugEnabled)
@@ -2597,7 +2610,7 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
     val knownNodes = allNodes.union(removedNodes.keySet)
     val newRemovedNodes =
       dataEntries.foldLeft(Set.empty[UniqueAddress]) {
-        case (acc, (_, (DataEnvelope(data: RemovedNodePruning, _, _), _))) =>
+        case (acc, (_, (DataEnvelope(data: RemovedNodePruning, _, _, _), _))) =>
           acc.union(data.modifiedByNodes.filterNot(n => n == selfUniqueAddress || knownNodes(n)))
         case (acc, _) =>
           acc
@@ -2647,7 +2660,7 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
     val pruningPerformed = PruningPerformed(System.currentTimeMillis() + pruningMarkerTimeToLive.toMillis)
     val durablePruningPerformed = PruningPerformed(System.currentTimeMillis() + durablePruningMarkerTimeToLive.toMillis)
     dataEntries.foreach {
-      case (key, (envelope @ DataEnvelope(data: RemovedNodePruning, pruning, _), _)) =>
+      case (key, (envelope @ DataEnvelope(data: RemovedNodePruning, pruning, _, _), _)) =>
         pruning.foreach {
           case (removed, PruningInitialized(owner, seen))
               if owner == selfUniqueAddress
@@ -2666,7 +2679,7 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
   def deleteObsoletePruningPerformed(): Unit = {
     val currentTime = System.currentTimeMillis()
     dataEntries.foreach {
-      case (key, (envelope @ DataEnvelope(_: RemovedNodePruning, pruning, _), _)) =>
+      case (key, (envelope @ DataEnvelope(_: RemovedNodePruning, pruning, _, _), _)) =>
         val newEnvelope = pruning.foldLeft(envelope) {
           case (acc, (removed, p: PruningPerformed)) if p.isObsolete(currentTime) =>
             log.debug("Removing obsolete pruning marker for [{}] in [{}]", removed, key)

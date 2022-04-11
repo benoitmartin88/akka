@@ -93,11 +93,11 @@ class TransactionSpec extends MultiNodeSpec(TransactionSpec) with STMultiNodeSpe
     }
 
     "not modify data after abort" in {
-      val tid = "42"
       val KeyB = GCounterKey("B")
+      val ctx = Transaction.Context(replicator, testActor)
 
       // prepare
-      replicator ! TwoPhaseCommitPrepare(tid)
+      replicator ! TwoPhaseCommitPrepare(ctx.tid)
       expectMsg(TwoPhaseCommitPrepareSuccess(None))
 
       // KeyA should not be found
@@ -107,11 +107,11 @@ class TransactionSpec extends MultiNodeSpec(TransactionSpec) with STMultiNodeSpe
       // update key
       val c3 = GCounter() :+ 3
 
-      replicator ! Update(KeyB, GCounter(), WriteLocal, None, Option(tid))(_ :+ 3)
+      replicator ! Update(KeyB, GCounter(), WriteLocal, None, Option(ctx.tid))(_ :+ 3)
       expectMsg(UpdateSuccess(KeyB, None))
 
       // get with transaction context
-      replicator ! Get(KeyB, ReadLocal, None, Option(tid))
+      replicator ! Get(KeyB, ReadLocal, None, Option(ctx))
       expectMsg(GetSuccess(KeyB, None)(c3)).dataValue should be(c3)
 
       // get without transaction context
@@ -119,11 +119,11 @@ class TransactionSpec extends MultiNodeSpec(TransactionSpec) with STMultiNodeSpe
       expectMsg(NotFound(KeyB, None))
 
       // abort
-      replicator ! TwoPhaseCommitAbort(tid)
+      replicator ! TwoPhaseCommitAbort(ctx.tid)
       expectMsg(TwoPhaseCommitAbortSuccess(None))
 
       // get with transaction context
-      replicator ! Get(KeyB, ReadLocal, None, Option(tid))
+      replicator ! Get(KeyB, ReadLocal, None, Option(ctx))
       expectMsg(NotFound(KeyB, None))
 
       // get without transaction context
@@ -133,29 +133,30 @@ class TransactionSpec extends MultiNodeSpec(TransactionSpec) with STMultiNodeSpe
   }
 
   "2PC commit" must {
-    val tid = "44"
+    val ctx = Transaction.Context(replicator, testActor)
 
     "fail if prepare has not been called" in {
-      replicator ! TwoPhaseCommitCommit(tid)
+      replicator ! TwoPhaseCommitCommit(ctx.tid)
       expectMsg(
         TwoPhaseCommitCommitError(
-          "no transaction with id " + tid + ": prepare not called or wrong transaction id",
+          "no transaction with id " + ctx.tid + ": prepare not called or wrong transaction id",
           None))
     }
 
     "succeed with an empty transaction" in {
-      replicator ! TwoPhaseCommitPrepare(tid)
+      replicator ! TwoPhaseCommitPrepare(ctx.tid)
       expectMsg(TwoPhaseCommitPrepareSuccess(None))
 
-      replicator ! TwoPhaseCommitCommit(tid)
+      replicator ! TwoPhaseCommitCommit(ctx.tid)
       expectMsg(TwoPhaseCommitCommitSuccess(None))
     }
 
     "modify data after commit" in {
       val KeyA = GCounterKey("A")
 
+
       // call prepare
-      replicator ! TwoPhaseCommitPrepare(tid)
+      replicator ! TwoPhaseCommitPrepare(ctx.tid)
       expectMsg(TwoPhaseCommitPrepareSuccess(None))
 
       // subscribe key
@@ -167,11 +168,11 @@ class TransactionSpec extends MultiNodeSpec(TransactionSpec) with STMultiNodeSpe
       // update key
       val c3 = GCounter() :+ 3
 
-      replicator ! Update(KeyA, GCounter(), WriteLocal, None, Option(tid))(_ :+ 3)
+      replicator ! Update(KeyA, GCounter(), WriteLocal, None, Option(ctx.tid))(_ :+ 3)
       expectMsg(UpdateSuccess(KeyA, None))
 
       // get with transaction context
-      replicator ! Get(KeyA, ReadLocal, None, Option(tid))
+      replicator ! Get(KeyA, ReadLocal, None, Option(ctx))
       expectMsg(GetSuccess(KeyA, None)(c3)).dataValue should be(c3)
 
       // get without transaction context
@@ -179,15 +180,15 @@ class TransactionSpec extends MultiNodeSpec(TransactionSpec) with STMultiNodeSpe
       expectMsg(NotFound(KeyA, None))
 
       // commit
-      replicator ! TwoPhaseCommitCommit(tid)
+      replicator ! TwoPhaseCommitCommit(ctx.tid)
       expectMsg(TwoPhaseCommitCommitSuccess(None))
       changedProbe.expectMsg(Changed(KeyA)(c3)).dataValue should be(c3)
 
       // second commit should fail
-      replicator ! TwoPhaseCommitCommit(tid)
+      replicator ! TwoPhaseCommitCommit(ctx.tid)
       expectMsg(
         TwoPhaseCommitCommitError(
-          "no transaction with id " + tid + ": prepare not called or wrong transaction id",
+          "no transaction with id " + ctx.tid + ": prepare not called or wrong transaction id",
           None))
 
       // TODO Get
@@ -268,7 +269,7 @@ class TransactionSpec extends MultiNodeSpec(TransactionSpec) with STMultiNodeSpe
       runOn(second) {
         val t = new Transaction(replicator, testActor, (ctx) => {
 
-          within(5.seconds) {
+          within(10.seconds) {
             awaitAssert {
               ctx.get(KEY)
               expectMsg(GetSuccess(KEY, None)(f1))
