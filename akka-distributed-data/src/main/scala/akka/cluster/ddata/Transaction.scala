@@ -16,7 +16,8 @@ import scala.concurrent.duration.DurationInt
 object Transaction {
   private[akka] type TransactionId = String
 
-  final case class Context(replicator: ActorRef, actor: ActorRef, version: VersionVector = VersionVector.empty) extends Serializable {
+  final case class Context(replicator: ActorRef, actor: ActorRef, var version: VersionVector = VersionVector.empty)
+      extends Serializable {
     val tid: TransactionId = java.util.UUID.randomUUID.toString // TODO: 128 bits can be reduced. eg: Snowflake ?
 
     def get[T <: ReplicatedData](key: Key[T]): Unit = {
@@ -58,18 +59,43 @@ final case class Transaction(replicator: ActorRef, actor: ActorRef, operations: 
   val log: Logger = LoggerFactory.getLogger("akka.cluster.ddata.Transaction")
   private implicit val askTimeout: Timeout = 5.seconds
 
+  prepare()
+
+  private def prepare(): Boolean = {
+    log.debug("[{}] - prepare()", id)
+    assert(context.version.isEmpty)
+
+    try {
+      Await.result((replicator ? TwoPhaseCommitPrepare(id)).mapTo[TwoPhaseCommitPrepareResponse], askTimeout.duration) match {
+        case TwoPhaseCommitPrepareSuccess(v, _) =>
+          context.version = v
+          true
+        case TwoPhaseCommitPrepareError(msg, _) =>
+          log.error(msg)
+          throw new RuntimeException(msg)
+        case _ =>
+          log.error("Unexpected message")
+          throw new RuntimeException("Unexpected message")
+      }
+    } catch {
+      case _: Throwable =>
+        abort()
+        false
+    }
+  }
+
   /**
    * Blocking call because of 2-phase-commit.
    * @return
    */
   def commit(): Boolean = {
-    log.debug("Transaction " + id + " commit()")
+    log.debug("[{}] - commit() [{}]", id, context.version)
 
     try {
-      prepare()
       operations(context)
 
-      Await.result((replicator ? TwoPhaseCommitCommit(id)).mapTo[TwoPhaseCommitCommitResponse], askTimeout.duration) match {
+      Await.result(
+        (replicator ? TwoPhaseCommitCommit(context)).mapTo[TwoPhaseCommitCommitResponse], askTimeout.duration) match {
         case TwoPhaseCommitCommitSuccess(_) => true
         case TwoPhaseCommitCommitError(msg, _) =>
           log.error(msg)
@@ -82,34 +108,13 @@ final case class Transaction(replicator: ActorRef, actor: ActorRef, operations: 
       case e: Throwable =>
         log.error(e.getMessage)
         abort()
-        false
+//        false
+        throw e
     }
   }
 
   def abort(): Unit = {
     replicator ! TwoPhaseCommitAbort(id) // TODO: wait for ACK ?
-  }
-
-  private def prepare(): Boolean = {
-    log.debug("Transaction " + id + " prepare() " + replicator)
-    // TODO
-//    replicator ! TwoPhaseCommitPrepare(id) // TODO: wait for ACK ?
-
-    try {
-      Await.result((replicator ? TwoPhaseCommitPrepare(id)).mapTo[TwoPhaseCommitPrepareResponse], askTimeout.duration) match {
-        case TwoPhaseCommitPrepareSuccess(_) => true
-        case TwoPhaseCommitPrepareError(msg, _) =>
-          log.error(msg)
-          false
-        case _ =>
-          log.error("Unexpected message")
-          false
-      }
-    } catch {
-      case _: Throwable =>
-        abort()
-        false
-    }
   }
 
 }

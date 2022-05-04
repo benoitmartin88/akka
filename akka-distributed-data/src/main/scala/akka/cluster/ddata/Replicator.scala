@@ -600,10 +600,11 @@ object Replicator {
     def getRequest: Optional[Any] = Optional.ofNullable(request.orNull)
   }
 
-  final case class TwoPhaseCommitPrepareSuccess(request: Option[Any])
+  final case class TwoPhaseCommitPrepareSuccess(v: VersionVector, request: Option[Any])
     extends TwoPhaseCommitPrepareResponse
       with ReplicatorMessage {
     override def result = true
+    val version: VersionVector = v
   }
 
   final case class TwoPhaseCommitPrepareError(msg: String, request: Option[Any])
@@ -617,18 +618,18 @@ object Replicator {
    * @param tid Transaction Id
    * @param request The optional request context is included in the reply messages. This is a convenient way to pass contextual information (e.g. original sender) without having to use ask or maintain local correlation data structures.
    */
-  final case class TwoPhaseCommitCommit(tid: TransactionId, request: Option[Any] = None) extends Command[ReplicatedData] with ReplicatorMessage {
+  final case class TwoPhaseCommitCommit(trxn: Transaction.Context, request: Option[Any] = None) extends Command[ReplicatedData] with ReplicatorMessage {
 
     /**
      * Java API: `Get` value from local `Replicator`, i.e. `ReadLocal` consistency.
      */
-    def this(tid: TransactionId) = this(tid, None)
+    def this(trxn: Transaction.Context) = this(trxn, None)
 
     /**
      * Java API: `Get` value from local `Replicator`, i.e. `ReadLocal` consistency.
      */
-    def this(tid: TransactionId, request: Optional[Any]) =
-      this(tid, Option(request.orElse(null)))
+    def this(trxn: Transaction.Context, request: Optional[Any]) =
+      this(trxn, Option(request.orElse(null)))
 
     override def key: Key[ReplicatedData] = GCounterKey("A")  // TODO: this is a hack !
   }
@@ -1070,7 +1071,7 @@ object Replicator {
         data: ReplicatedData,
         pruning: Map[UniqueAddress, PruningState] = Map.empty,
         deltaVersions: VersionVector = VersionVector.empty,
-        causalVersions: VersionVector = VersionVector.empty)
+        version: VersionVector = VersionVector.empty)
         extends ReplicatorMessage {
 
       import PruningState._
@@ -1151,10 +1152,21 @@ object Replicator {
           }
           val mergedDeltaVersions = cleanedDV.merge(cleanedOtherDV)
 
+          // TODO: check this
+          // cleanup and merge version
+          val cleanedV = removedNodes.foldLeft(version) { (acc, node) =>
+            acc.pruningCleanup(node)
+          }
+          val cleanedOtherV = removedNodes.foldLeft(other.version) { (acc, node) =>
+            acc.pruningCleanup(node)
+          }
+          val mergedVersion = cleanedV.merge(cleanedOtherV)
+
           // cleanup both sides before merging, `merge(otherData: ReplicatedData)` will cleanup other.data
           copy(
             data = cleaned(data, filteredMergedPruning),
             deltaVersions = mergedDeltaVersions,
+            version = mergedVersion,
             pruning = filteredMergedPruning).merge(other.data)
         }
 
@@ -1196,7 +1208,7 @@ object Replicator {
       }
 
       def estimatedSizeWithoutData: Int = {
-        deltaVersions.estimatedSize + pruning.valuesIterator.map(_.estimatedSize + EstimatedSize.UniqueAddress).sum
+        version.estimatedSize + deltaVersions.estimatedSize + pruning.valuesIterator.map(_.estimatedSize + EstimatedSize.UniqueAddress).sum
       }
     }
 
@@ -1554,7 +1566,7 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
           .scheduleWithFixedDelay(deltaPropagationInterval, deltaPropagationInterval, self, DeltaPropagationTick))
     } else None
 
-  val snapshotManager: SnapshotManager = SnapshotManager(/*selfUniqueAddress*/)
+  val snapshotManager: SnapshotManager = SnapshotManager(selfUniqueAddress)
 
   // cluster nodes, doesn't contain selfAddress, doesn't contain joining and weaklyUp
   var nodes: immutable.SortedSet[UniqueAddress] = immutable.SortedSet.empty
@@ -1591,7 +1603,7 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
 
   // inflight data (uncommitted transaction)
 //  key: KeyR, writeConsistency: WriteConsistency, envelope: DataEnvelope, req: Option[Any], delta: Option[ReplicatedDelta]
-  var inflightEntries = mutable.HashMap.empty[String, mutable.ListBuffer[(KeyR, WriteConsistency, DataEnvelope, Option[Any], Option[ReplicatedDelta])]]
+  var inflightEntries = mutable.HashMap.empty[TransactionId, mutable.ListBuffer[(KeyR, WriteConsistency, DataEnvelope, Option[Any], Option[ReplicatedDelta])]]
   // the actual data
   var dataEntries = Map.empty[KeyId, (DataEnvelope, Digest)]
   // keys that have changed, Changed event published to subscribers on FlushChanges
@@ -1769,9 +1781,9 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
       }
 
     case TwoPhaseCommitPrepare(tid, req)  => receiveTwoPhaseCommitPrepare(tid, req)
-    case TwoPhaseCommitCommit(tid, req)   => receiveTwoPhaseCommitCommit(tid, req)
+    case TwoPhaseCommitCommit(trxn, req)   => receiveTwoPhaseCommitCommit(trxn, req)
     case TwoPhaseCommitAbort(tid, req)    => receiveTwoPhaseCommitAbort(tid, req)
-    case Get(key, consistency, req, t)    => receiveGet(key, consistency, req, t)
+    case Get(key, consistency, req, trxn)    => receiveGet(key, consistency, req, trxn)
     case u @ Update(key, writeC, req, tid)  => receiveUpdate(tid, key, u.modify, writeC, req)
     case ReadRepair(key, envelope)     => receiveReadRepair(key, envelope)
     case FlushChanges                  => receiveFlushChanges()
@@ -1805,26 +1817,38 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
     } else {
       log.debug("Transaction id " + tid + " prepare OK")
       inflightEntries.update(tid, new mutable.ListBuffer())
-      TwoPhaseCommitPrepareSuccess(req)
+      TwoPhaseCommitPrepareSuccess(snapshotManager.getCurrentVersionVector(), req)
     }
 
     replyTo ! reply
   }
 
-  def receiveTwoPhaseCommitCommit(tid: TransactionId, req: Option[Any]): Unit = {
-    log.info("Received TwoPhaseCommitCommit for transaction [{}].", tid)
+  def receiveTwoPhaseCommitCommit(trxn: Transaction.Context, req: Option[Any]): Unit = {
+    log.info("Received TwoPhaseCommitCommit for transaction [{}].", trxn)
 
-    if (!inflightEntries.contains(tid)) {
-      replyTo ! TwoPhaseCommitCommitError("no transaction with id " + tid + ": prepare not called or wrong transaction id", req)
+    def updatedVectorClock(envelope: DataEnvelope): DataEnvelope = {
+      envelope.copy(version = snapshotManager.getCurrentVersionVector())
+    }
+
+    if (!inflightEntries.contains(trxn.tid)) {
+      replyTo ! TwoPhaseCommitCommitError("no transaction with id " + trxn.tid + ": prepare not called or wrong transaction id", req)
     } else {
 
-      for ((key, writeConsistency, envelope, req, delta) <- inflightEntries(tid)) {
-        log.debug("[{}] - key= [{}] handleUpdate() ", tid, key)
-        handleUpdate(key, writeConsistency, envelope, req, delta, sendReply = false)
+      val keysAndValues = mutable.ListBuffer.empty[(KeyId, DataEnvelope)]
+
+      if(inflightEntries.nonEmpty) snapshotManager.increment(selfUniqueAddress)
+
+      for ((key, writeConsistency, envelope, req, delta) <- inflightEntries(trxn.tid)) {
+        log.debug("[{}] - key= [{}] handleUpdate() ", trxn.tid, key)
+        val newEnvelope = updatedVectorClock(envelope)
+        keysAndValues += ((key.id, newEnvelope))
+        handleUpdate(key, writeConsistency, newEnvelope, req, delta, sendReply = false)
       }
 
-      inflightEntries.remove(tid) // TODO: what if there is an error ?
-      assert(!inflightEntries.contains(tid))
+      inflightEntries.remove(trxn.tid) // TODO: what if there is an error ?
+      assert(!inflightEntries.contains(trxn.tid))
+
+      snapshotManager.update(dataEntries, keysAndValues.result())
 
       replyTo ! TwoPhaseCommitCommitSuccess(req)
     }
@@ -1836,6 +1860,13 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
     replyTo ! TwoPhaseCommitAbortSuccess(req)
   }
 
+  /**
+   * 1) check if in a transaction
+   * 2a) not in transaction: check data entries with respect to read consistency
+   * 2b) in transaction:
+   * 3) check inflight data entries (read my own writes)
+   * 4) check snapshot
+   */
   def receiveGet(key: KeyR, consistency: ReadConsistency, req: Option[Any], trxn: Option[Transaction.Context]): Unit = {
     log.debug("Received Get for key [{}] on transaction [{}]. replyTo=[{}]", key, trxn, replyTo)
 
@@ -1854,10 +1885,15 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
           val data = inflightEntries(tid).find(_._1 == key).get._3.data // find first entry for given key
           GetSuccess(key, req)(data)
         } else {
-          // no value for key in inflightEntries, check local
+          // no value for key in inflightEntries, check snapshot
           log.debug("[{}] - could not find a value for key [{}] in inflightEntries. Checking local entries.", tid, key)
 
-          handleGet(key, ReadLocal, req, trxn)
+          snapshotManager.get(trxn.get.version, key.id) match {
+            case Some(data) => GetSuccess(key, req)(data)
+            case None => NotFound(key, req)
+          }
+
+//          handleGet(key, ReadLocal, req, trxn)
         }
         replyTo ! reply // TODO: might be wrong, double send reply
       } else {
@@ -1870,38 +1906,41 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
   def handleGet(key: KeyR, consistency: ReadConsistency, req: Option[Any], trxn: Option[Transaction.Context] = None): Unit = {
 
     if(trxn.nonEmpty) {
-      val res = snapshotManager.get(trxn.get.version, key.id)
-      log.debug(">>>> " + res)
-    }
-
-
-
-    val localValue = getData(key.id)
-    if (isLocalGet(consistency)) {
-      val reply = localValue match {
-        case Some(DataEnvelope(DeletedData, _, _, _)) => GetDataDeleted(key, req)
-        case Some(DataEnvelope(data, _, _, _))        => GetSuccess(key, req)(data)
-        case None                                  => NotFound(key, req)
+//      assert(!trxn.get.version.isEmpty)
+      // in a transaction with causal context.
+      val reply = snapshotManager.get(trxn.get.version, key.id) match {
+        case Some(data) => GetSuccess(key, req)(data)
+        case None => NotFound(key, req)
       }
       replyTo ! reply
     } else {
-      val excludeExiting = consistency match {
-        case _: ReadMajorityPlus | _: ReadAll => true
-        case _                                => false
+      val localValue = getData(key.id)
+      if (isLocalGet(consistency)) {
+        val reply = localValue match {
+          case Some(DataEnvelope(DeletedData, _, _, _)) => GetDataDeleted(key, req)
+          case Some(DataEnvelope(data, _, _, _))        => GetSuccess(key, req)(data)
+          case None                                  => NotFound(key, req)
+        }
+        replyTo ! reply
+      } else {
+        val excludeExiting = consistency match {
+          case _: ReadMajorityPlus | _: ReadAll => true
+          case _                                => false
+        }
+        context.actorOf(
+          ReadAggregator
+            .props(
+              key,
+              consistency,
+              req,
+              selfUniqueAddress,
+              nodesForReadWrite(excludeExiting),
+              unreachable,
+              !settings.preferOldest,
+              localValue,
+              replyTo)
+            .withDispatcher(context.props.dispatcher))
       }
-      context.actorOf(
-        ReadAggregator
-          .props(
-            key,
-            consistency,
-            req,
-            selfUniqueAddress,
-            nodesForReadWrite(excludeExiting),
-            unreachable,
-            !settings.preferOldest,
-            localValue,
-            replyTo)
-          .withDispatcher(context.props.dispatcher))
     }
   }
 
@@ -2472,6 +2511,9 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
     var replyKeys = Set.empty[KeyId]
     updatedData.foreach {
       case (key, envelope) =>
+
+        snapshotManager.update(dataEntries, key, envelope)
+
         val hadData = dataEntries.contains(key)
         writeAndStore(key, envelope, reply = false)
         if (sendBack) getData(key) match {

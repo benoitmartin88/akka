@@ -7,7 +7,8 @@ package akka.cluster.ddata
 import akka.actor.Address
 import akka.cluster.UniqueAddress
 import akka.cluster.ddata.Key.KeyId
-import akka.cluster.ddata.Replicator.Internal.DataEnvelope
+import akka.cluster.ddata.Replicator.Internal.{DataEnvelope, Digest}
+import akka.cluster.ddata.SnapshotManager.DataEntries
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
 
@@ -22,10 +23,9 @@ class SnapshotManagerSpec extends AnyWordSpec with Matchers {
   implicit val selfUniqueAddress: SelfUniqueAddress = SelfUniqueAddress(node1)
 
   "SnapshotManager" must {
-    type DataEntries = Map[KeyId, DataEnvelope]
-
-    val dataEntries: DataEntries = TreeMap[KeyId, DataEnvelope]()
-    val key = "key"
+    val dataEntries: DataEntries = Map.empty[KeyId, (DataEnvelope, Digest)]
+    val key1 = "key1"
+    val key2 = "key2"
     val c1 = GCounter() :+ 1
     val c2 = GCounter() :+ 2
     val c3 = GCounter() :+ 3
@@ -35,36 +35,54 @@ class SnapshotManagerSpec extends AnyWordSpec with Matchers {
     val vv2 = ManyVersionVector(TreeMap(node1 -> 2, node2 -> 2))
     val vv3 = ManyVersionVector(TreeMap(node1 -> 3, node2 -> 3))
 
-    val snapshotManager = SnapshotManager()
+    val snapshotManager = SnapshotManager(node1)
 
     "update multiple times correctly" in {
-      // same vv
-      snapshotManager.update(vv2, dataEntries, key, DataEnvelope(c2))
+
+      // vv2
+      snapshotManager.update(dataEntries, key1, DataEnvelope(c1, version = vv2))
       snapshotManager.snapshots.size should be(1)
       snapshotManager.snapshots.keySet.toList should be(List(vv2))
+      snapshotManager.snapshots(vv2)(key1)._1.data should be(c1)
 
-      snapshotManager.update(vv2, dataEntries, key, DataEnvelope(c2))
+      // same vv, same data
+      snapshotManager.update(dataEntries, key1, DataEnvelope(c1, version = vv2))
       snapshotManager.snapshots.size should be(1)
       snapshotManager.snapshots.keySet.toList should be(List(vv2))
+      snapshotManager.snapshots(vv2)(key1)._1.data should be(c1)
 
-      // bigger vv
-      snapshotManager.update(vv3, dataEntries, key, DataEnvelope(c3))
+      // same vv, different data
+      snapshotManager.update(dataEntries, key1, DataEnvelope(c2, version = vv2))
+      snapshotManager.snapshots.size should be(1)
+      snapshotManager.snapshots.keySet.toList should be(List(vv2))
+      snapshotManager.snapshots(vv2)(key1)._1.data should be(c2)
+
+      // same vv, different key
+      snapshotManager.update(dataEntries, key2, DataEnvelope(c2, version = vv2))
+      snapshotManager.snapshots.size should be(1)
+      snapshotManager.snapshots.keySet.toList should be(List(vv2))
+      snapshotManager.snapshots(vv2)(key1)._1.data should be(c2)
+      snapshotManager.snapshots(vv2)(key2)._1.data should be(c2)
+
+      // bigger vv: vv3
+      snapshotManager.update(dataEntries, key1, DataEnvelope(c3, version = vv3))
       snapshotManager.snapshots.size should be(2)
       snapshotManager.snapshots.keySet.toList should be(List(vv2, vv3))
 
-      // smaller vv
-      snapshotManager.update(vv1, dataEntries, key, DataEnvelope(c1))
+      // smaller vv: vv1
+      snapshotManager.update(dataEntries, key1, DataEnvelope(c1, version = vv1))
+      snapshotManager.snapshots.size should be(3)
       snapshotManager.snapshots.keySet.toList should be(List(vv1, vv2, vv3))
     }
 
     "get previously added key with correct vector clock" in {
-      snapshotManager.get(vv1, key).get should be(c1)
-      snapshotManager.get(vv2, key).get should be(c2)
-      snapshotManager.get(vv3, key).get should be(c3)
+      snapshotManager.get(vv1, key1).get should be(c1)
+      snapshotManager.get(vv2, key1).get should be(c2)
+      snapshotManager.get(vv3, key1).get should be(c3)
     }
 
     "get with an unknown vector clock" in {
-      snapshotManager.get(vv0, key) should be(None)
+      snapshotManager.get(vv0, key1) should be(None)
     }
 
     "get unknown key" in {

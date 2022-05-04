@@ -69,7 +69,7 @@ class TransactionSpec extends MultiNodeSpec(TransactionSpec) with STMultiNodeSpe
       val tid = "41"
 
       replicator ! TwoPhaseCommitPrepare(tid)
-      expectMsg(TwoPhaseCommitPrepareSuccess(None))
+      expectMsg(TwoPhaseCommitPrepareSuccess(VersionVector(selfUniqueAddress.uniqueAddress, 0), None))
 
       replicator ! TwoPhaseCommitPrepare(tid)
       expectMsg(TwoPhaseCommitPrepareError("Transaction id " + tid + " already inflight", None))
@@ -86,7 +86,7 @@ class TransactionSpec extends MultiNodeSpec(TransactionSpec) with STMultiNodeSpe
       val tid = "42"
 
       replicator ! TwoPhaseCommitPrepare(tid)
-      expectMsg(TwoPhaseCommitPrepareSuccess(None))
+      expectMsg(TwoPhaseCommitPrepareSuccess(VersionVector(selfUniqueAddress.uniqueAddress, 0), None))
 
       replicator ! TwoPhaseCommitAbort(tid)
       expectMsg(TwoPhaseCommitAbortSuccess(None))
@@ -98,7 +98,7 @@ class TransactionSpec extends MultiNodeSpec(TransactionSpec) with STMultiNodeSpe
 
       // prepare
       replicator ! TwoPhaseCommitPrepare(ctx.tid)
-      expectMsg(TwoPhaseCommitPrepareSuccess(None))
+      expectMsg(TwoPhaseCommitPrepareSuccess(VersionVector(selfUniqueAddress.uniqueAddress, 0), None))
 
       // KeyA should not be found
       replicator ! Get(KeyB, ReadLocal)
@@ -136,7 +136,7 @@ class TransactionSpec extends MultiNodeSpec(TransactionSpec) with STMultiNodeSpe
     val ctx = Transaction.Context(replicator, testActor)
 
     "fail if prepare has not been called" in {
-      replicator ! TwoPhaseCommitCommit(ctx.tid)
+      replicator ! TwoPhaseCommitCommit(ctx)
       expectMsg(
         TwoPhaseCommitCommitError(
           "no transaction with id " + ctx.tid + ": prepare not called or wrong transaction id",
@@ -145,19 +145,18 @@ class TransactionSpec extends MultiNodeSpec(TransactionSpec) with STMultiNodeSpe
 
     "succeed with an empty transaction" in {
       replicator ! TwoPhaseCommitPrepare(ctx.tid)
-      expectMsg(TwoPhaseCommitPrepareSuccess(None))
+      expectMsg(TwoPhaseCommitPrepareSuccess(VersionVector(selfUniqueAddress.uniqueAddress, 0), None))
 
-      replicator ! TwoPhaseCommitCommit(ctx.tid)
+      replicator ! TwoPhaseCommitCommit(ctx)
       expectMsg(TwoPhaseCommitCommitSuccess(None))
     }
 
     "modify data after commit" in {
       val KeyA = GCounterKey("A")
 
-
       // call prepare
       replicator ! TwoPhaseCommitPrepare(ctx.tid)
-      expectMsg(TwoPhaseCommitPrepareSuccess(None))
+      expectMsg(TwoPhaseCommitPrepareSuccess(VersionVector(selfUniqueAddress.uniqueAddress, 1), None))
 
       // subscribe key
       val changedProbe = TestProbe()
@@ -180,12 +179,12 @@ class TransactionSpec extends MultiNodeSpec(TransactionSpec) with STMultiNodeSpe
       expectMsg(NotFound(KeyA, None))
 
       // commit
-      replicator ! TwoPhaseCommitCommit(ctx.tid)
+      replicator ! TwoPhaseCommitCommit(ctx)
       expectMsg(TwoPhaseCommitCommitSuccess(None))
       changedProbe.expectMsg(Changed(KeyA)(c3)).dataValue should be(c3)
 
       // second commit should fail
-      replicator ! TwoPhaseCommitCommit(ctx.tid)
+      replicator ! TwoPhaseCommitCommit(ctx)
       expectMsg(
         TwoPhaseCommitCommitError(
           "no transaction with id " + ctx.tid + ": prepare not called or wrong transaction id",
@@ -209,8 +208,7 @@ class TransactionSpec extends MultiNodeSpec(TransactionSpec) with STMultiNodeSpe
     }
 
     "commit an empty without error when empty" in {
-      val t1 = new Transaction(replicator, testActor, (_) => {
-      })
+      val t1 = new Transaction(replicator, testActor, (_) => {})
       t1.commit() should be(true)
 
       val t2 = new Transaction(replicator, testActor, (_) => None)
@@ -239,6 +237,8 @@ class TransactionSpec extends MultiNodeSpec(TransactionSpec) with STMultiNodeSpe
         f1.enabled should be(false)
 
         val t1 = new Transaction(replicator, testActor, (ctx) => {
+          ctx.version.isEmpty should be(false)
+
           f1.enabled should be(false)
           f1 = f1.switchOn
           f1.enabled should be(true)
@@ -255,8 +255,10 @@ class TransactionSpec extends MultiNodeSpec(TransactionSpec) with STMultiNodeSpe
 
         t1.commit() should be(true)
 
-        // local read from second transaction
+        // local read from previous transaction
         val t2 = new Transaction(replicator, testActor, (ctx) => {
+          ctx.version.isEmpty should be(false)
+
           ctx.get(KEY)
           expectMsg(GetSuccess(KEY, None)(f1)).dataValue should be(f1)
         })
@@ -267,57 +269,23 @@ class TransactionSpec extends MultiNodeSpec(TransactionSpec) with STMultiNodeSpe
       enterBarrier("update flag")
 
       runOn(second) {
-        val t = new Transaction(replicator, testActor, (ctx) => {
+        within(10.seconds) {
+          awaitAssert({
+            val t = new Transaction(replicator, testActor, (ctx) => {
+              ctx.version.isEmpty should be(false)
 
-          within(10.seconds) {
-            awaitAssert {
               ctx.get(KEY)
               expectMsg(GetSuccess(KEY, None)(f1))
-            }
-          }
-        })
+            })
 
-        t.commit() should be(true)
+            t.commit() should be(true)
+          }, interval = 1.second)
+        }
       }
 
       enterBarrierAfterTestStep()
     }
 
-//    "work in single node cluster" in {
-//      join(first, first)
-//
-//      runOn(first) {
-//
-//        within(5.seconds) {
-//          awaitAssert {
-//            replicator ! GetReplicaCount
-//            expectMsg(ReplicaCount(1))
-//          }
-//        }
-//
-//        var f1 = Flag()
-//        f1.enabled should be(false)
-//
-//        val t1 = new Transaction(replicator, () => {
-//          println("Transaction 1")
-//
-//          f1.enabled should be(false)
-//          f1 = f1.switchOn
-//          f1.enabled should be(true)
-//
-//          val f2 = Flag()
-//          f2.enabled should be(false)
-//        })
-//
-//        f1.enabled should be(false)
-//        t1.commit() should be(true) // commit here
-////        expectMsg(PrepareCommitSuccess(None))
-//
-//        f1.enabled should be(true)
-//      }
-//
-//      enterBarrierAfterTestStep()
-//    }
   }
 
 }
