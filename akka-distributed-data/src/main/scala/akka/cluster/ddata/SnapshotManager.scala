@@ -21,9 +21,11 @@ object SnapshotManager {
 
   val log: Logger = LoggerFactory.getLogger("akka.cluster.ddata.SnapshotManager")
   var currentVersionVector: VersionVector = VersionVector.empty
+  var lastStableSnapshot: (VersionVector, DataEntries) = (VersionVector.empty, Map.empty)
 
   def apply(selfUniqueAddress: UniqueAddress): SnapshotManager = {
     currentVersionVector = VersionVector(selfUniqueAddress, 0)
+    lastStableSnapshot = (VersionVector(selfUniqueAddress, 0), Map.empty)
     new SnapshotManager(selfUniqueAddress, mutable.TreeMap.empty[VersionVector, DataEntries](VersionVectorOrdering))
   }
 }
@@ -36,15 +38,48 @@ private[akka] class SnapshotManager(
     val snapshots: mutable.TreeMap[VersionVector, DataEntries]) {
   import SnapshotManager._
 
+  def currentVersionVector = SnapshotManager.currentVersionVector
+  def lastStableSnapshot = SnapshotManager.lastStableSnapshot
+
   def increment(node: UniqueAddress): Unit = {
-    currentVersionVector = currentVersionVector.increment(node)
+    SnapshotManager.currentVersionVector = currentVersionVector.increment(node)
   }
 
-  def getCurrentVersionVector(): VersionVector = currentVersionVector
-
   def mergeCurrentVersion(that: VersionVector): VersionVector = {
-    currentVersionVector = currentVersionVector.merge(that)
+    SnapshotManager.currentVersionVector = currentVersionVector.merge(that)
     currentVersionVector
+  }
+
+  def sumVersionVector(vv: VersionVector): Int = {
+    var i: Int = 0
+    var paddedVv = vv
+    var paddedLastStableSnapshot = SnapshotManager.lastStableSnapshot
+    // make sure they are the same size
+    if (lastStableSnapshot._1.size > vv.size) {
+      lastStableSnapshot._1.versionsIterator.foreach(p => {
+        val node = p._1
+        if (!vv.contains(node)) {
+          paddedVv = vv.pad(node)
+        }
+      })
+    } else if (lastStableSnapshot._1.size < vv.size) {
+      vv.versionsIterator.foreach(p => {
+        val node = p._1
+        if (!lastStableSnapshot._1.contains(node)) {
+          paddedLastStableSnapshot = (lastStableSnapshot._1.pad(node), lastStableSnapshot._2)
+        }
+      })
+    }
+
+    assert(paddedLastStableSnapshot._1.size == paddedVv.size)
+
+    paddedLastStableSnapshot._1.versionsIterator
+      .zip(paddedVv.versionsIterator)
+      .foreach(x => {
+        i += (x._1._2 - x._2._2).abs.toInt
+      })
+
+    i
   }
 
   /**
@@ -71,16 +106,46 @@ private[akka] class SnapshotManager(
   def update(dataEntries: DataEntries, key: KeyId, envelope: DataEnvelope): Unit = {
     log.debug("SnapshotManager::update(dataEntries=" + dataEntries + ", key=" + key + ", envelope=" + envelope + ")")
 
-    val version =
-      if (envelope.version < currentVersionVector) envelope.version // old snapshot
-      else mergeCurrentVersion(envelope.version)
+    def updateLastStableSnapshot(key: KeyId, envelope: DataEnvelope): Unit = {
+      val version = envelope.version
+      val newEnvelope = envelope.copy(version = VersionVector.empty) // remove version vector because information is redundant
+      //      val newDataEntries = Map.empty.updated(key, (newEnvelope, DeletedDigest))
+      val newDataEntries = lastStableSnapshot._2.updated(key, (newEnvelope, DeletedDigest))
+      SnapshotManager.lastStableSnapshot = (version, newDataEntries)
+    }
 
-    snapshots.get(version) match {
-      case Some(foundDataEntries) => snapshots.addOne((version, foundDataEntries.updated(key, (envelope, DeletedDigest))))
-      case None =>
-        val newEnvelope = envelope.copy(version = VersionVector.empty) // remove version vector because information is redundant
-        val newDataEntries = dataEntries.updated(key, (newEnvelope, DeletedDigest)) // TODO: recalculate digest ?
-        snapshots.addOne((version, newDataEntries))
+    val version = envelope.version
+
+    // TODO: check this !
+    if (sumVersionVector(version) > 1) {
+      // not stable yet
+      snapshots.get(version) match {
+        case Some(foundDataEntries) =>
+          snapshots.addOne((version, foundDataEntries.updated(key, (envelope, DeletedDigest))))
+        case None =>
+          val newEnvelope = envelope.copy(version = VersionVector.empty) // remove version vector because information is redundant
+          val newDataEntries = Map.empty.updated(key, (newEnvelope, DeletedDigest))
+          snapshots.addOne((version, newDataEntries))
+      }
+    } else {
+      // stable: apply, than check if pending operations can be applied
+      updateLastStableSnapshot(key, envelope)
+
+      def findUpdateAndRemove(envelope: DataEnvelope): Unit = {
+        snapshots.find(snapshot => sumVersionVector(snapshot._1) == 1) match {
+          case Some(d) =>
+            val version = d._1
+            d._2.foreach(p => updateLastStableSnapshot(p._1, p._2._1.copy(version = version)))
+            snapshots.remove(d._1)
+
+            findUpdateAndRemove(envelope)
+
+          case _ =>
+        }
+      }
+
+      // check if other operations can be applied
+      findUpdateAndRemove(envelope)
     }
   }
 

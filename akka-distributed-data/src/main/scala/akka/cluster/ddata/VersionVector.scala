@@ -149,6 +149,16 @@ sealed abstract class VersionVector extends ReplicatedData with ReplicatedDataSe
   @InternalApi private[akka] def contains(node: UniqueAddress): Boolean
 
   /**
+   * INTERNAL API
+   * Add Padding (version = 0) to a given node.
+   *
+   * Eg: version vector = [('a', 1), ('b', 3)], pad('c') -> [('a', 1), ('b', 3), ('c', 0)]
+   * @param node Node to use as padding
+   * @return new VersionVector
+   */
+  @InternalApi private[akka] def pad(node: UniqueAddress): VersionVector
+
+  /**
    * Returns true if <code>this</code> and <code>that</code> are concurrent else false.
    */
   def <>(that: VersionVector): Boolean = compareOnlyTo(that, Concurrent) eq Concurrent
@@ -290,6 +300,9 @@ final case class OneVersionVector private[akka] (node: UniqueAddress, version: L
   @InternalApi private[akka] override def contains(n: UniqueAddress): Boolean =
     n == node
 
+  @InternalApi private[akka] override def pad(n: UniqueAddress): VersionVector =
+    ManyVersionVector(TreeMap(node -> version, n -> 0))
+
   /** INTERNAL API */
   @InternalApi private[akka] override def versionsIterator: Iterator[(UniqueAddress, Long)] =
     Iterator.single((node, version))
@@ -352,6 +365,12 @@ final case class ManyVersionVector(versions: TreeMap[UniqueAddress, Long]) exten
   /** INTERNAL API */
   @InternalApi private[akka] override def contains(node: UniqueAddress): Boolean =
     versions.contains(node)
+
+  @InternalApi private[akka] override def pad(node: UniqueAddress): VersionVector = {
+    if(!versions.contains(node))
+      ManyVersionVector(versions.updated(node, 0))
+    else VersionVector(versions)
+  }
 
   /** INTERNAL API */
   @InternalApi private[akka] override def versionsIterator: Iterator[(UniqueAddress, Long)] =

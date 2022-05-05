@@ -1817,7 +1817,7 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
     } else {
       log.debug("Transaction id " + tid + " prepare OK")
       inflightEntries.update(tid, new mutable.ListBuffer())
-      TwoPhaseCommitPrepareSuccess(snapshotManager.getCurrentVersionVector(), req)
+      TwoPhaseCommitPrepareSuccess(snapshotManager.currentVersionVector, req)
     }
 
     replyTo ! reply
@@ -1827,7 +1827,7 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
     log.info("Received TwoPhaseCommitCommit for transaction [{}].", trxn)
 
     def updatedVectorClock(envelope: DataEnvelope): DataEnvelope = {
-      envelope.copy(version = snapshotManager.getCurrentVersionVector())
+      envelope.copy(version = snapshotManager.currentVersionVector)
     }
 
     if (!inflightEntries.contains(trxn.tid)) {

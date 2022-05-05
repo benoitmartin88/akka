@@ -29,11 +29,13 @@ class SnapshotManagerSpec extends AnyWordSpec with Matchers {
     val c1 = GCounter() :+ 1
     val c2 = GCounter() :+ 2
     val c3 = GCounter() :+ 3
+    val c4 = GCounter() :+ 4
 
-    val vv0 = ManyVersionVector(TreeMap(node1 -> 0, node2 -> 0))
-    val vv1 = ManyVersionVector(TreeMap(node1 -> 1, node2 -> 1))
-    val vv2 = ManyVersionVector(TreeMap(node1 -> 2, node2 -> 2))
-    val vv3 = ManyVersionVector(TreeMap(node1 -> 3, node2 -> 3))
+    val vv0 = ManyVersionVector(TreeMap(node1 -> 0))
+    val vv1 = ManyVersionVector(TreeMap(node1 -> 1))
+    val vv4 = ManyVersionVector(TreeMap(node1 -> 1, node2 -> 1))
+    val vv2 = ManyVersionVector(TreeMap(node1 -> 1, node2 -> 2))
+    val vv3 = ManyVersionVector(TreeMap(node1 -> 2, node2 -> 2))
 
     val snapshotManager = SnapshotManager(node1)
 
@@ -44,18 +46,27 @@ class SnapshotManagerSpec extends AnyWordSpec with Matchers {
       snapshotManager.snapshots.size should be(1)
       snapshotManager.snapshots.keySet.toList should be(List(vv2))
       snapshotManager.snapshots(vv2)(key1)._1.data should be(c1)
+      // check lastStableSnapshot
+      snapshotManager.lastStableSnapshot._1.compareTo(vv0) should be(VersionVector.Same)
+      snapshotManager.lastStableSnapshot._2.size should be(0)
 
       // same vv, same data
       snapshotManager.update(dataEntries, key1, DataEnvelope(c1, version = vv2))
       snapshotManager.snapshots.size should be(1)
       snapshotManager.snapshots.keySet.toList should be(List(vv2))
       snapshotManager.snapshots(vv2)(key1)._1.data should be(c1)
+      // check lastStableSnapshot
+      snapshotManager.lastStableSnapshot._1.compareTo(vv0) should be(VersionVector.Same)
+      snapshotManager.lastStableSnapshot._2.size should be(0)
 
       // same vv, different data
       snapshotManager.update(dataEntries, key1, DataEnvelope(c2, version = vv2))
       snapshotManager.snapshots.size should be(1)
       snapshotManager.snapshots.keySet.toList should be(List(vv2))
       snapshotManager.snapshots(vv2)(key1)._1.data should be(c2)
+      // check lastStableSnapshot
+      snapshotManager.lastStableSnapshot._1.compareTo(vv0) should be(VersionVector.Same)
+      snapshotManager.lastStableSnapshot._2.size should be(0)
 
       // same vv, different key
       snapshotManager.update(dataEntries, key2, DataEnvelope(c2, version = vv2))
@@ -63,16 +74,34 @@ class SnapshotManagerSpec extends AnyWordSpec with Matchers {
       snapshotManager.snapshots.keySet.toList should be(List(vv2))
       snapshotManager.snapshots(vv2)(key1)._1.data should be(c2)
       snapshotManager.snapshots(vv2)(key2)._1.data should be(c2)
+      // check lastStableSnapshot
+      snapshotManager.lastStableSnapshot._1.compareTo(vv0) should be(VersionVector.Same)
+      snapshotManager.lastStableSnapshot._2.size should be(0)
 
       // bigger vv: vv3
       snapshotManager.update(dataEntries, key1, DataEnvelope(c3, version = vv3))
       snapshotManager.snapshots.size should be(2)
       snapshotManager.snapshots.keySet.toList should be(List(vv2, vv3))
+      // check lastStableSnapshot
+      snapshotManager.lastStableSnapshot._1.compareTo(vv0) should be(VersionVector.Same)
+      snapshotManager.lastStableSnapshot._2.size should be(0)
 
       // smaller vv: vv1
       snapshotManager.update(dataEntries, key1, DataEnvelope(c1, version = vv1))
-      snapshotManager.snapshots.size should be(3)
-      snapshotManager.snapshots.keySet.toList should be(List(vv1, vv2, vv3))
+      snapshotManager.snapshots.size should be(2)
+      snapshotManager.snapshots.keySet.toList should be(List(vv2, vv3))
+      // check lastStableSnapshot
+      snapshotManager.lastStableSnapshot._1 should be(vv1)
+      snapshotManager.lastStableSnapshot._2(key1)._1.data should be(c1)
+
+      // vv4
+      snapshotManager.update(dataEntries, key1, DataEnvelope(c4, version = vv4))
+      snapshotManager.snapshots.size should be(0)
+      snapshotManager.snapshots.keySet.toList should be(List())
+      // check lastStableSnapshot
+      snapshotManager.lastStableSnapshot._1 should be(vv3)
+      snapshotManager.lastStableSnapshot._2(key1)._1.data should be(c3)
+      snapshotManager.lastStableSnapshot._2(key2)._1.data should be(c2)
     }
 
     "get previously added key with correct vector clock" in {
