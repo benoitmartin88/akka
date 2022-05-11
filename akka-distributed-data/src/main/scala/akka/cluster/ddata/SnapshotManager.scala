@@ -67,7 +67,9 @@ private[akka] class SnapshotManager(
 
         println("!!!!!! latestStableSnapshot= " + (vv, data))
         (vv, data)
-      case None => globalStableSnapshot
+      case None =>
+        println("!!!!!! latestStableSnapshot= " + globalStableSnapshot)
+        globalStableSnapshot
     }
   }
 
@@ -153,29 +155,26 @@ private[akka] class SnapshotManager(
 
   def update(tid: Transaction.TransactionId, key: KeyId, envelope: DataEnvelope): Unit = {
     println("SnapshotManager::update() tid=" + tid + ", key=" + key + ", value=" + envelope.data)
-    val newEnvelope = envelope.copy(version = VersionVector.empty) // remove version vector because information is redundant
 
     currentTransactions.get(tid) match {
       case Some(d) =>
-        val newData = d._1._2.updated(key, newEnvelope)
+        val newData = d._1._2.updated(key, envelope)
         currentTransactions.update(tid, ((d._1._1, newData), true))
       case None => // transaction prepare has not been called
     }
   }
 
-  def updateFromGossip(updatedData: Map[KeyId, DataEnvelope]): Unit = {
-    println("<<<<<<<< updateFromGossip() updatedData=" + updatedData)
-    updatedData.foreach(p => updateFromGossip(p._1, p._2))
+  def updateFromGossip(version: VersionVector, updatedData: Map[KeyId, DataEnvelope]): Unit = {
+    println("<<<<<<<< updateFromGossip() version=" + version + ", updatedData=" + updatedData)
+    updatedData.foreach(p => updateFromGossip(version, p._1, p._2))
   }
 
   /**
    * Does not increment vector clock
    */
-  private def updateFromGossip(key: KeyId, envelope: DataEnvelope): Unit = {
+  private def updateFromGossip(version: VersionVector, key: KeyId, envelope: DataEnvelope): Unit = {
     println("SnapshotManager::updateFromGossip(key=" + key + ", envelope=" + envelope + ")")
 
-    val version = envelope.version
-    val newEnvelope = envelope.copy(version = VersionVector.empty) // remove version vector because information is redundant
     val lastCommitted = committedTransactions.lastOption
 
     lastCommitted match {
@@ -187,13 +186,13 @@ private[akka] class SnapshotManager(
             version.compareTo(last._1) match {
               case VersionVector.Concurrent =>
                 val vv = version.merge(last._1)
-                val dd = newEnvelope.merge(d.data.asInstanceOf[newEnvelope.data.T])
+                val dd = envelope.merge(d.data.asInstanceOf[envelope.data.T])
                 (vv, last._2.updated(key, dd))
               case _ =>
                 assert(false) // TODO: other cases ?
-                (version, last._2.updated(key, newEnvelope))
+                (version, last._2.updated(key, envelope))
             }
-          case None => (version, last._2.updated(key, newEnvelope))
+          case None => (version, last._2.updated(key, envelope))
         }
         committedTransactions.update(vv, data)
       case None =>

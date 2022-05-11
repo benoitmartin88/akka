@@ -81,7 +81,6 @@ message DataEnvelope {
   required OtherMessage data = 1;
   repeated PruningEntry pruning = 2;
   optional VersionVector deltaVersions = 3;
-  optional VersionVector version = 4;
 }
 
 message Status {

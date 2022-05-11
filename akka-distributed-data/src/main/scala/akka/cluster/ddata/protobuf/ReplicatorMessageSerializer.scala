@@ -532,9 +532,6 @@ class ReplicatorMessageSerializer(val system: ExtendedActorSystem)
     if (!dataEnvelope.deltaVersions.isEmpty)
       dataEnvelopeBuilder.setDeltaVersions(versionVectorToProto(dataEnvelope.deltaVersions))
 
-    if (!dataEnvelope.version.isEmpty)
-      dataEnvelopeBuilder.setVersion(versionVectorToProto(dataEnvelope.version))
-
     dataEnvelopeBuilder.build()
   }
 
@@ -547,10 +544,7 @@ class ReplicatorMessageSerializer(val system: ExtendedActorSystem)
     val deltaVersions =
       if (dataEnvelope.hasDeltaVersions) versionVectorFromProto(dataEnvelope.getDeltaVersions)
       else VersionVector.empty
-    val version =
-      if (dataEnvelope.hasVersion) versionVectorFromProto(dataEnvelope.getVersion)
-      else VersionVector.empty
-    DataEnvelope(data, pruning, deltaVersions, version)
+    DataEnvelope(data, pruning, deltaVersions)
   }
 
   private def pruningFromProto(

@@ -78,9 +78,10 @@ final case class Transaction(replicator: ActorRef, actor: ActorRef, operations: 
           throw new RuntimeException("Unexpected message")
       }
     } catch {
-      case _: Throwable =>
+      case e: Throwable =>
+        log.error("[{}] - Transaction::prepare() [{}]", id, e.getMessage)
         abort()
-        false
+        throw e
     }
   }
 
