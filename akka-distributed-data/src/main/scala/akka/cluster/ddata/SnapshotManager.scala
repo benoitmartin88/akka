@@ -7,7 +7,7 @@ package akka.cluster.ddata
 import akka.cluster.UniqueAddress
 import akka.cluster.ddata.Key.KeyId
 import akka.cluster.ddata.Replicator.Internal.DataEnvelope
-import akka.cluster.ddata.SnapshotManager.{DataEntries, Snapshot}
+import akka.cluster.ddata.SnapshotManager.Snapshot
 import org.slf4j.{Logger, LoggerFactory}
 
 import scala.collection.mutable
@@ -27,7 +27,7 @@ object SnapshotManager {
     new SnapshotManager(
       selfUniqueAddress,
       mutable.Map.empty,
-      mutable.TreeMap.empty[VersionVector, DataEntries](VersionVectorOrdering),
+      (VersionVector.empty, Map.empty),
       mutable.HashMap.empty[Transaction.TransactionId, (Snapshot, Boolean)])
   }
 }
@@ -40,7 +40,7 @@ object SnapshotManager {
 private[akka] class SnapshotManager(
     val selfUniqueAddress: UniqueAddress,
     private val knownVersionVectors: mutable.Map[UniqueAddress, VersionVector],
-    val committedTransactions: mutable.TreeMap[VersionVector, DataEntries],   // TODO: might not need a tree. maybe just a Snapshot is needed
+    var lastestLocalSnapshot: Snapshot,
     val currentTransactions: mutable.HashMap[Transaction.TransactionId, (Snapshot, Boolean)]) {
   import SnapshotManager._
 
@@ -59,17 +59,17 @@ private[akka] class SnapshotManager(
    * TODO: strip empty vv ?
    */
   private def latestStableSnapshot: Snapshot = {
-    val lastCommitted = committedTransactions.lastOption
-    lastCommitted match {
-      case Some(last) =>
-        val vv = globalStableSnapshot._1.merge(last._1)
-        val data = globalStableSnapshot._2 ++ last._2
+
+    lastestLocalSnapshot._1.compareTo(VersionVector.empty) match {
+      case VersionVector.Same =>
+        println("!!!!!! latestStableSnapshot= " + globalStableSnapshot)
+        globalStableSnapshot
+      case _ =>
+        val vv = globalStableSnapshot._1.merge(lastestLocalSnapshot._1)
+        val data = globalStableSnapshot._2 ++ lastestLocalSnapshot._2
 
         println("!!!!!! latestStableSnapshot= " + (vv, data))
         (vv, data)
-      case None =>
-        println("!!!!!! latestStableSnapshot= " + globalStableSnapshot)
-        globalStableSnapshot
     }
   }
 
@@ -119,19 +119,12 @@ private[akka] class SnapshotManager(
         res
     }
 
-    val newData = committedTransactions.minAfter(newGssVv) match {
-      case None => None
-      case d    => d.get._2
-//        if (d.get._1 < newGssVv || d.get._1 == newGssVv) Option(d.get._2(key)._1.data)
-//        else None
-    }
-
-    SnapshotManager.globalStableSnapshot = (newGssVv, SnapshotManager.globalStableSnapshot._2 ++ newData)
+    SnapshotManager.globalStableSnapshot =
+      (newGssVv, SnapshotManager.globalStableSnapshot._2 ++ lastestLocalSnapshot._2)
   }
 
   /**
    * Returns the value associated to a given key with respect to a given version vector.
-   * @param version version vector to use as causal context
    * @param key key to lookup
    * @return value associated to the given key
    */
@@ -175,29 +168,24 @@ private[akka] class SnapshotManager(
   private def updateFromGossip(version: VersionVector, key: KeyId, envelope: DataEnvelope): Unit = {
     println("SnapshotManager::updateFromGossip(key=" + key + ", envelope=" + envelope + ")")
 
-    val lastCommitted = committedTransactions.lastOption
-
-    lastCommitted match {
-      case Some(last) =>
-        // check if key is found in last committed
-        val (vv, data) = last._2.get(key) match {
-          case Some(d) =>
-            // found key, check if data was concurrently modified
-            version.compareTo(last._1) match {
-              case VersionVector.Concurrent | VersionVector.After =>
-                // received concurrent or more recent data: merge VV + data
-                val vv = version.merge(last._1)
-                val dd = envelope.merge(d.data.asInstanceOf[envelope.data.T])
-                (vv, last._2.updated(key, dd))
-              case _ =>
-                assert(false) // TODO: other cases ? what to do ?
-                (version, last._2.updated(key, envelope))
-            }
-          case None => (version, last._2.updated(key, envelope))
+    // check if key is found in last committed
+    val (vv, data) = lastestLocalSnapshot._2.get(key) match {
+      case Some(d) =>
+        // found key, check if data was concurrently modified
+        version.compareTo(lastestLocalSnapshot._1) match {
+          case VersionVector.Same | VersionVector.Concurrent | VersionVector.After =>
+            // received concurrent or more recent data: merge VV + data
+            val vv = version.merge(lastestLocalSnapshot._1)
+            val dd = envelope.merge(d.data.asInstanceOf[envelope.data.T])
+            (vv, lastestLocalSnapshot._2.updated(key, dd))
+          case _ =>
+            assert(false) // TODO: other cases ? what to do ?
+            (version, lastestLocalSnapshot._2.updated(key, envelope))
         }
-        committedTransactions.update(vv, data)
-      case None =>
+      case None => (version, lastestLocalSnapshot._2.updated(key, envelope))
     }
+
+    lastestLocalSnapshot = (vv, data)
   }
 
   def commit(tid: Transaction.TransactionId): VersionVector = {
@@ -207,48 +195,36 @@ private[akka] class SnapshotManager(
       case Some(snapshot) =>
         def increment = snapshot._2
 
-        val lastCommitted = committedTransactions.lastOption
-        val (newVV, newData) = lastCommitted match {
-          case Some(last) =>
-            snapshot._1._1.compareTo(last._1) match {
-              case VersionVector.Concurrent =>
-                // concurrent
-                val vv =
-                  if (increment) snapshot._1._1.merge(last._1).increment(selfUniqueAddress)
-                  else snapshot._1._1.merge(last._1)
-
-                // merge data
-                var dd = last._2
-                last._2.foreach(l => {
-                  snapshot._1._2.foreach(s => {
-                    if (s._1 == l._1) {
-                      dd = dd.updated(s._1, s._2.merge(l._2))
-                    } else {
-                      dd = dd.updated(s._1, s._2)
-                    }
-                  })
-                })
-
-                (vv, dd)
-              case _ =>
-                // not concurrent
-                val vv =
-                  if (increment) snapshot._1._1.merge(last._1).increment(selfUniqueAddress)
-                  else snapshot._1._1.merge(last._1)
-
-                (vv, snapshot._1._2)
-            }
-
-          case None =>
-            // there is no last committed : use snapshot
+        val (newVV, newData) = snapshot._1._1.compareTo(lastestLocalSnapshot._1) match {
+          case VersionVector.Concurrent =>
+            // concurrent
             val vv =
-              if (increment) snapshot._1._1.increment(selfUniqueAddress)
-              else snapshot._1._1
+              if (increment) snapshot._1._1.merge(lastestLocalSnapshot._1).increment(selfUniqueAddress)
+              else snapshot._1._1.merge(lastestLocalSnapshot._1)
+
+            // merge data
+            var dd = lastestLocalSnapshot._2
+            lastestLocalSnapshot._2.foreach(l => {
+              snapshot._1._2.foreach(s => {
+                if (s._1 == l._1) {
+                  dd = dd.updated(s._1, s._2.merge(l._2))
+                } else {
+                  dd = dd.updated(s._1, s._2)
+                }
+              })
+            })
+
+            (vv, dd)
+          case _ =>
+            // not concurrent
+            val vv =
+              if (increment) snapshot._1._1.merge(lastestLocalSnapshot._1).increment(selfUniqueAddress)
+              else snapshot._1._1.merge(lastestLocalSnapshot._1)
 
             (vv, snapshot._1._2)
         }
 
-        committedTransactions.addOne((newVV, newData))
+        lastestLocalSnapshot = (newVV, newData)
         newVV
       case None => VersionVector.empty
     }

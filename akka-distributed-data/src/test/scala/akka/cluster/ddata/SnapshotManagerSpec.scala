@@ -45,7 +45,8 @@ class SnapshotManagerSpec extends AnyWordSpec with Matchers {
       // check currentTransactions
       snapshotManager.currentTransactions.size should be(0)
       // check committedTransactions
-      snapshotManager.committedTransactions.size should be(0)
+      snapshotManager.lastestLocalSnapshot._1.compareTo(VersionVector.empty) should be(VersionVector.Same)
+      snapshotManager.lastestLocalSnapshot._2.size should be(0)
       // check knownVersionVectors
       snapshotManager.getKnownVectorClocks.size should be(0)
       // check globalStableSnapshot
@@ -57,7 +58,8 @@ class SnapshotManagerSpec extends AnyWordSpec with Matchers {
       // check currentTransactions
       snapshotManager.currentTransactions.size should be(0)
       // check committedTransactions
-      snapshotManager.committedTransactions.size should be(0)
+      snapshotManager.lastestLocalSnapshot._1.compareTo(VersionVector.empty) should be(VersionVector.Same)
+      snapshotManager.lastestLocalSnapshot._2.size should be(0)
       // check knownVersionVectors
       snapshotManager.getKnownVectorClocks.size should be(0)
       // check globalStableSnapshot
@@ -76,7 +78,8 @@ class SnapshotManagerSpec extends AnyWordSpec with Matchers {
       snapshotManager.currentTransactions(tid)._1._2(key1).data should be(c1)
       snapshotManager.currentTransactions(tid)._2 should be(true)
       // check committedTransactions
-      snapshotManager.committedTransactions.size should be(0)
+      snapshotManager.lastestLocalSnapshot._1.compareTo(VersionVector.empty) should be(VersionVector.Same)
+      snapshotManager.lastestLocalSnapshot._2.size should be(0)
       // check knownVersionVectors
       snapshotManager.getKnownVectorClocks.size should be(0)
       // check globalStableSnapshot
@@ -91,7 +94,8 @@ class SnapshotManagerSpec extends AnyWordSpec with Matchers {
       snapshotManager.currentTransactions(tid)._1._2(key1).data should be(c1)
       snapshotManager.currentTransactions(tid)._2 should be(true)
       // check committedTransactions
-      snapshotManager.committedTransactions.size should be(0)
+      snapshotManager.lastestLocalSnapshot._1.compareTo(VersionVector.empty) should be(VersionVector.Same)
+      snapshotManager.lastestLocalSnapshot._2.size should be(0)
       // check knownVersionVectors
       snapshotManager.getKnownVectorClocks.size should be(0)
       // check globalStableSnapshot
@@ -107,7 +111,8 @@ class SnapshotManagerSpec extends AnyWordSpec with Matchers {
       snapshotManager.currentTransactions(tid)._1._2(key2).data should be(c1)
       snapshotManager.currentTransactions(tid)._2 should be(true)
       // check committedTransactions
-      snapshotManager.committedTransactions.size should be(0)
+      snapshotManager.lastestLocalSnapshot._1.compareTo(VersionVector.empty) should be(VersionVector.Same)
+      snapshotManager.lastestLocalSnapshot._2.size should be(0)
       // check knownVersionVectors
       snapshotManager.getKnownVectorClocks.size should be(0)
       // check globalStableSnapshot
@@ -123,7 +128,8 @@ class SnapshotManagerSpec extends AnyWordSpec with Matchers {
       snapshotManager.currentTransactions(tid)._1._2(key2).data should be(c2)
       snapshotManager.currentTransactions(tid)._2 should be(true)
       // check committedTransactions
-      snapshotManager.committedTransactions.size should be(0)
+      snapshotManager.lastestLocalSnapshot._1.compareTo(VersionVector.empty) should be(VersionVector.Same)
+      snapshotManager.lastestLocalSnapshot._2.size should be(0)
       // check knownVersionVectors
       snapshotManager.getKnownVectorClocks.size should be(0)
       // check globalStableSnapshot
@@ -135,10 +141,10 @@ class SnapshotManagerSpec extends AnyWordSpec with Matchers {
       // check currentTransactions
       snapshotManager.currentTransactions.contains(tid) should be(false)
       // check committedTransactions
-      snapshotManager.committedTransactions.size should be(1)
-      snapshotManager.committedTransactions.contains(commitVv) should be(true)
-      snapshotManager.committedTransactions(commitVv)(key1).data should be(c1)
-      snapshotManager.committedTransactions(commitVv)(key2).data should be(c2)
+      snapshotManager.lastestLocalSnapshot._1.compareTo(commitVv) should be(VersionVector.Same)
+      snapshotManager.lastestLocalSnapshot._2.size should be(2)
+      snapshotManager.lastestLocalSnapshot._2(key1).data should be(c1)
+      snapshotManager.lastestLocalSnapshot._2(key2).data should be(c2)
       // check knownVersionVectors
       snapshotManager.getKnownVectorClocks.size should be(0)
       // check globalStableSnapshot
@@ -162,10 +168,10 @@ class SnapshotManagerSpec extends AnyWordSpec with Matchers {
       // check currentTransactions
       snapshotManager.currentTransactions.contains(tid) should be(false)
       // check committedTransactions
-      snapshotManager.committedTransactions.size should be(1)
-      snapshotManager.committedTransactions.contains(commitVv) should be(true)
-      snapshotManager.committedTransactions(commitVv)(key1).data should be(c1)
-      snapshotManager.committedTransactions(commitVv)(key2).data should be(c2)
+      snapshotManager.lastestLocalSnapshot._1.compareTo(commitVv) should be(VersionVector.Same)
+      snapshotManager.lastestLocalSnapshot._2.size should be(2)
+      snapshotManager.lastestLocalSnapshot._2(key1).data should be(c1)
+      snapshotManager.lastestLocalSnapshot._2(key2).data should be(c2)
       // check knownVersionVectors
       snapshotManager.getKnownVectorClocks.size should be(0)
       // check globalStableSnapshot
