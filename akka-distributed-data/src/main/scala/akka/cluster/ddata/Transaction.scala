@@ -33,7 +33,7 @@ object Transaction {
 //    }
 
     def update[T <: ReplicatedData](key: Key[T])(value: T): Unit = {
-      replicator.tell(Update(key, WriteLocal, None, Option(tid))(_ => value), actor)
+      replicator.tell(Update(key, WriteLocal, None, Some(tid))(_ => value), actor)
     }
   }
 }
@@ -108,7 +108,6 @@ final case class Transaction(replicator: ActorRef, actor: ActorRef, operations: 
       case e: Throwable =>
         log.error(e.getMessage)
         abort()
-//        false
         throw e
     }
   }

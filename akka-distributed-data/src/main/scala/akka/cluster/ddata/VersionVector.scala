@@ -367,7 +367,7 @@ final case class ManyVersionVector(versions: TreeMap[UniqueAddress, Long]) exten
     versions.contains(node)
 
   @InternalApi private[akka] override def pad(node: UniqueAddress): VersionVector = {
-    if(!versions.contains(node))
+    if (!versions.contains(node))
       ManyVersionVector(versions.updated(node, 0))
     else VersionVector(versions)
   }
@@ -420,13 +420,13 @@ final case class ManyVersionVector(versions: TreeMap[UniqueAddress, Long]) exten
 }
 
 object VersionVectorOrdering extends Ordering[VersionVector] {
-  import VersionVector.{Same, Before, After, Concurrent}
-  def compare(key1:VersionVector, key2:VersionVector) = {
+  import VersionVector.{ After, Before, Concurrent, Same }
+  def compare(key1: VersionVector, key2: VersionVector): Int = {
     key1.compareTo(key2) match {
       case Same | Concurrent => 0
-      case Before => -1
-      case After => 1
-      case _ => -1
+      case Before            => -1
+      case After             => 1
+      case _                 => -1
     }
   }
 }

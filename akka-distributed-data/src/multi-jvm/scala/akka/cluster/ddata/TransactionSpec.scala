@@ -156,7 +156,7 @@ class TransactionSpec extends MultiNodeSpec(TransactionSpec) with STMultiNodeSpe
 
       // call prepare
       replicator ! TwoPhaseCommitPrepare(ctx.tid)
-      expectMsg(TwoPhaseCommitPrepareSuccess(VersionVector(selfUniqueAddress.uniqueAddress, 1), None))
+      expectMsg(TwoPhaseCommitPrepareSuccess(VersionVector(selfUniqueAddress.uniqueAddress, 0), None))
 
       // subscribe key
       val changedProbe = TestProbe()
@@ -237,6 +237,7 @@ class TransactionSpec extends MultiNodeSpec(TransactionSpec) with STMultiNodeSpe
         f1.enabled should be(false)
 
         val t1 = new Transaction(replicator, testActor, (ctx) => {
+          println(">>>>>>>>>>> 1 tid=" + ctx.tid + ", version=" + ctx.version)
           ctx.version.isEmpty should be(false)
 
           f1.enabled should be(false)
@@ -257,6 +258,7 @@ class TransactionSpec extends MultiNodeSpec(TransactionSpec) with STMultiNodeSpe
 
         // local read from previous transaction
         val t2 = new Transaction(replicator, testActor, (ctx) => {
+          println(">>>>>>>>>>> 2 tid=" + ctx.tid + ", version=" + ctx.version)
           ctx.version.isEmpty should be(false)
 
           ctx.get(KEY)
@@ -272,6 +274,7 @@ class TransactionSpec extends MultiNodeSpec(TransactionSpec) with STMultiNodeSpe
         within(10.seconds) {
           awaitAssert({
             val t = new Transaction(replicator, testActor, (ctx) => {
+              println(">>>>>>>>>>> 3 tid=" + ctx.tid + ", version=" + ctx.version)
               ctx.version.isEmpty should be(false)
 
               ctx.get(KEY)

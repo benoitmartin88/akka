@@ -185,6 +185,7 @@ class ReplicatorMessageSerializer(val system: ExtendedActorSystem)
   val DurableDataEnvelopeManifest = "P"
   val DeltaPropagationManifest = "Q"
   val DeltaNackManifest = "R"
+  val SnapshotGossipManifest = "S"
 
   private val fromBinaryMap = collection.immutable.HashMap[String, Array[Byte] => AnyRef](
     GetManifest -> getFromBinary,
@@ -201,6 +202,7 @@ class ReplicatorMessageSerializer(val system: ExtendedActorSystem)
     ReadResultManifest -> readResultFromBinary,
     StatusManifest -> statusFromBinary,
     GossipManifest -> gossipFromBinary,
+    SnapshotGossipManifest -> snapshotGossipFromBinary,
     DeltaPropagationManifest -> deltaPropagationFromBinary,
     WriteNackManifest -> (_ => WriteNack),
     DeltaNackManifest -> (_ => DeltaNack),
@@ -223,6 +225,7 @@ class ReplicatorMessageSerializer(val system: ExtendedActorSystem)
     case _: Subscribe[_]        => SubscribeManifest
     case _: Unsubscribe[_]      => UnsubscribeManifest
     case _: Gossip              => GossipManifest
+    case _: SnapshotGossip      => SnapshotGossipManifest
     case WriteNack              => WriteNackManifest
     case DeltaNack              => DeltaNackManifest
     case _ =>
@@ -246,6 +249,7 @@ class ReplicatorMessageSerializer(val system: ExtendedActorSystem)
     case m: Subscribe[_]        => subscribeToProto(m).toByteArray
     case m: Unsubscribe[_]      => unsubscribeToProto(m).toByteArray
     case m: Gossip              => compress(gossipToProto(m))
+    case m: SnapshotGossip      => compress(snapshotGossipToProto(m))
     case WriteNack              => dm.Empty.getDefaultInstance.toByteArray
     case DeltaNack              => dm.Empty.getDefaultInstance.toByteArray
     case _ =>
@@ -310,6 +314,28 @@ class ReplicatorMessageSerializer(val system: ExtendedActorSystem)
       sendBack = gossip.getSendBack,
       toSystemUid,
       fromSystemUid)
+  }
+
+  private def snapshotGossipToProto(gossip: SnapshotGossip): dm.SnapshotGossip = {
+    val b = dm.SnapshotGossip.newBuilder().setFromNode(uniqueAddressToProto(gossip.fromNode))
+    b.setVersionVector(versionVectorToProto(gossip.versionVector))
+    if (gossip.updatedData.nonEmpty)
+      gossip.updatedData.get.foreach {
+        case (key, data) =>
+          b.addEntries(dm.SnapshotGossip.Entry.newBuilder().setKey(key).setEnvelope(dataEnvelopeToProto(data)))
+      }
+    gossip.toSystemUid.foreach(b.setToSystemUid) // can be None when sending back to a node of version 2.5.21
+    b.build()
+  }
+
+  private def snapshotGossipFromBinary(bytes: Array[Byte]): SnapshotGossip = {
+    val gossip = dm.SnapshotGossip.parseFrom(decompress(bytes))
+    val toSystemUid = if (gossip.hasToSystemUid) Some(gossip.getToSystemUid) else None
+    SnapshotGossip(
+      uniqueAddressFromProto(gossip.getFromNode),
+      versionVectorFromProto(gossip.getVersionVector),
+      Some(gossip.getEntriesList.asScala.iterator.map(e => e.getKey -> dataEnvelopeFromProto(e.getEnvelope)).toMap),
+      toSystemUid)
   }
 
   private def deltaPropagationToProto(deltaPropagation: DeltaPropagation): dm.DeltaPropagation = {

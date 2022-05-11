@@ -6,151 +6,255 @@ package akka.cluster.ddata
 
 import akka.cluster.UniqueAddress
 import akka.cluster.ddata.Key.KeyId
-import akka.cluster.ddata.Replicator.Internal.{DataEnvelope, DeletedDigest, Digest}
-import akka.cluster.ddata.SnapshotManager.DataEntries
+import akka.cluster.ddata.Replicator.Internal.DataEnvelope
+import akka.cluster.ddata.SnapshotManager.{DataEntries, Snapshot}
 import org.slf4j.{Logger, LoggerFactory}
 
-import scala.collection.{immutable, mutable}
+import scala.collection.mutable
 
 /**
  * INTERNAL API: Used by the Replicator actor.
  */
 object SnapshotManager {
-  type DataEntries = Map[KeyId, (DataEnvelope, Digest)]
-//  def newEmptyDataEntries: DataEntries = Map.empty[KeyId, (DataEnvelope, Digest)]
+  type DataEntries = Map[KeyId, DataEnvelope]
+  type Snapshot = (VersionVector, DataEntries)
 
   val log: Logger = LoggerFactory.getLogger("akka.cluster.ddata.SnapshotManager")
-  var currentVersionVector: VersionVector = VersionVector.empty
-  var lastStableSnapshot: (VersionVector, DataEntries) = (VersionVector.empty, Map.empty)
+  var globalStableSnapshot: Snapshot = (VersionVector.empty, Map.empty)
 
   def apply(selfUniqueAddress: UniqueAddress): SnapshotManager = {
-    currentVersionVector = VersionVector(selfUniqueAddress, 0)
-    lastStableSnapshot = (VersionVector(selfUniqueAddress, 0), Map.empty)
-    new SnapshotManager(selfUniqueAddress, mutable.TreeMap.empty[VersionVector, DataEntries](VersionVectorOrdering))
+    globalStableSnapshot = (VersionVector(selfUniqueAddress, 0), Map.empty)
+    new SnapshotManager(
+      selfUniqueAddress,
+      mutable.Map.empty,
+      mutable.TreeMap.empty[VersionVector, DataEntries](VersionVectorOrdering),
+      mutable.HashMap.empty[Transaction.TransactionId, (Snapshot, Boolean)])
   }
 }
 
-/**
- * TODO: duplicate version vector saved: once as TreeMap key and in DataEnvelope.
- */
+//private[akka] class Entry(
+//   val snapshot: DataEntries,
+//   val count: Int,
+//   val incremented: Boolean) {}
+
 private[akka] class SnapshotManager(
     val selfUniqueAddress: UniqueAddress,
-    val snapshots: mutable.TreeMap[VersionVector, DataEntries]) {
+    private val knownVersionVectors: mutable.Map[UniqueAddress, VersionVector],
+    val committedTransactions: mutable.TreeMap[VersionVector, DataEntries],   // TODO: might not need a tree. maybe just a Snapshot is needed
+    val currentTransactions: mutable.HashMap[Transaction.TransactionId, (Snapshot, Boolean)]) {
   import SnapshotManager._
 
-  def currentVersionVector = SnapshotManager.currentVersionVector
-  def lastStableSnapshot = SnapshotManager.lastStableSnapshot
+  def globalStableSnapshot: Snapshot = SnapshotManager.globalStableSnapshot
 
-  def increment(node: UniqueAddress): Unit = {
-    SnapshotManager.currentVersionVector = currentVersionVector.increment(node)
+  def transactionPrepare(tid: Transaction.TransactionId): Snapshot = {
+    println("SnapshotManager::transactionPrepare() tid=" + tid)
+    val res = latestStableSnapshot
+    currentTransactions.update(tid, (res, false))
+    res
   }
 
-  def mergeCurrentVersion(that: VersionVector): VersionVector = {
-    SnapshotManager.currentVersionVector = currentVersionVector.merge(that)
-    currentVersionVector
+  /**
+   * GSS + local committed operations
+   * Used for transaction start
+   * TODO: strip empty vv ?
+   */
+  private def latestStableSnapshot: Snapshot = {
+    val lastCommitted = committedTransactions.lastOption
+    lastCommitted match {
+      case Some(last) =>
+        val vv = globalStableSnapshot._1.merge(last._1)
+        val data = globalStableSnapshot._2 ++ last._2
+
+        println("!!!!!! latestStableSnapshot= " + (vv, data))
+        (vv, data)
+      case None => globalStableSnapshot
+    }
   }
 
-  def sumVersionVector(vv: VersionVector): Int = {
-    var i: Int = 0
-    var paddedVv = vv
-    var paddedLastStableSnapshot = SnapshotManager.lastStableSnapshot
-    // make sure they are the same size
-    if (lastStableSnapshot._1.size > vv.size) {
-      lastStableSnapshot._1.versionsIterator.foreach(p => {
-        val node = p._1
-        if (!vv.contains(node)) {
-          paddedVv = vv.pad(node)
-        }
-      })
-    } else if (lastStableSnapshot._1.size < vv.size) {
-      vv.versionsIterator.foreach(p => {
-        val node = p._1
-        if (!lastStableSnapshot._1.contains(node)) {
-          paddedLastStableSnapshot = (lastStableSnapshot._1.pad(node), lastStableSnapshot._2)
-        }
-      })
+  def getKnownVectorClocks: Map[UniqueAddress, VersionVector] = knownVersionVectors.toMap
+
+  def updateKnownVersionVectors(node: UniqueAddress, versionVector: VersionVector): Unit = {
+    knownVersionVectors.update(node, versionVector)
+    updateGlobalStableSnapshot()
+
+    println(">>>>>>>> GSS=" + globalStableSnapshot + ", knownVectorClocks=" + knownVersionVectors)
+  }
+
+  def updateGlobalStableSnapshot(): Unit = {
+    val vvs = knownVersionVectors.values.toList
+    val newGssVv = vvs.size match {
+      case 0 => VersionVector.empty
+      case 1 => vvs.head
+      case _ =>
+        var res = VersionVector.empty
+
+        val vv1 = vvs.head
+        vv1.versionsIterator.foreach(p => {
+          val node1 = p._1
+          val node1Vv = p._2
+//          println("> node1 = " + node1 + ", node1Vv = " + node1Vv)
+
+          for (i <- 1 until vvs.size) {
+            val vv2 = vvs(i)
+            vv2.versionsIterator.foreach(p => {
+              val node2 = p._1
+              val node2Vv = p._2
+//              println(">> node2 = " + node2 + ", node2Vv = " + node2Vv)
+
+              if (node1 == node2) {
+                if (res.contains(node1)) {
+                  res = res.merge(VersionVector(node1, math.min(node2Vv, res.versionAt(node1))))
+                } else {
+                  res = res.merge(VersionVector(node1, math.min(node2Vv, node1Vv)))
+                }
+              }
+
+//              println("res = " + res)
+//              println()
+            })
+          }
+        })
+        res
     }
 
-    assert(paddedLastStableSnapshot._1.size == paddedVv.size)
+    val newData = committedTransactions.minAfter(newGssVv) match {
+      case None => None
+      case d    => d.get._2
+//        if (d.get._1 < newGssVv || d.get._1 == newGssVv) Option(d.get._2(key)._1.data)
+//        else None
+    }
 
-    paddedLastStableSnapshot._1.versionsIterator
-      .zip(paddedVv.versionsIterator)
-      .foreach(x => {
-        i += (x._1._2 - x._2._2).abs.toInt
-      })
-
-    i
+    SnapshotManager.globalStableSnapshot = (newGssVv, SnapshotManager.globalStableSnapshot._2 ++ newData)
   }
 
   /**
    * Returns the value associated to a given key with respect to a given version vector.
-   * The version vector
    * @param version version vector to use as causal context
    * @param key key to lookup
    * @return value associated to the given key
    */
-  def get(version: VersionVector, key: KeyId): Option[ReplicatedData] = {
-    log.debug("SnapshotManager::get(version=[{}], key=[{}], ", version, key)
-    snapshots.minAfter(version) match {
+  def get(tid: Transaction.TransactionId, key: KeyId): Option[ReplicatedData] = {
+    log.debug("SnapshotManager::get(tid=[{}], key=[{}], ", tid, key)
+
+    currentTransactions.get(tid) match {
+      case Some(snapshot) =>
+        snapshot._1._2.get(key) match {
+          case Some(dd) => Some(dd.data)
+          case None     => None
+        }
       case None => None
-      case d =>
-        if ((d.get._1 < version || d.get._1 == version) && d.get._2.contains(key)) Option(d.get._2(key)._1.data)
-        else None
     }
+  }
+
+  def update(tid: Transaction.TransactionId, updatedData: Map[KeyId, DataEnvelope]): Unit = {
+    println("<<<<<<<< update() tid=" + tid + ", updatedData=" + updatedData)
+    updatedData.foreach(p => update(tid, p._1, p._2))
+  }
+
+  def update(tid: Transaction.TransactionId, key: KeyId, envelope: DataEnvelope): Unit = {
+    println("SnapshotManager::update() tid=" + tid + ", key=" + key + ", value=" + envelope.data)
+    val newEnvelope = envelope.copy(version = VersionVector.empty) // remove version vector because information is redundant
+
+    currentTransactions.get(tid) match {
+      case Some(d) =>
+        val newData = d._1._2.updated(key, newEnvelope)
+        currentTransactions.update(tid, ((d._1._1, newData), true))
+      case None => // transaction prepare has not been called
+    }
+  }
+
+  def updateFromGossip(updatedData: Map[KeyId, DataEnvelope]): Unit = {
+    println("<<<<<<<< updateFromGossip() updatedData=" + updatedData)
+    updatedData.foreach(p => updateFromGossip(p._1, p._2))
   }
 
   /**
-   * TODO: Here the full DataEntries map is copied !! This "trick" is only done to save a full snapshot and not have to implement a view materializer.
    * Does not increment vector clock
    */
-  def update(dataEntries: DataEntries, key: KeyId, envelope: DataEnvelope): Unit = {
-    log.debug("SnapshotManager::update(dataEntries=" + dataEntries + ", key=" + key + ", envelope=" + envelope + ")")
-
-    def updateLastStableSnapshot(key: KeyId, envelope: DataEnvelope): Unit = {
-      val version = envelope.version
-      val newEnvelope = envelope.copy(version = VersionVector.empty) // remove version vector because information is redundant
-      //      val newDataEntries = Map.empty.updated(key, (newEnvelope, DeletedDigest))
-      val newDataEntries = lastStableSnapshot._2.updated(key, (newEnvelope, DeletedDigest))
-      SnapshotManager.lastStableSnapshot = (version, newDataEntries)
-    }
+  private def updateFromGossip(key: KeyId, envelope: DataEnvelope): Unit = {
+    println("SnapshotManager::updateFromGossip(key=" + key + ", envelope=" + envelope + ")")
 
     val version = envelope.version
+    val newEnvelope = envelope.copy(version = VersionVector.empty) // remove version vector because information is redundant
+    val lastCommitted = committedTransactions.lastOption
 
-    // TODO: check this !
-    if (sumVersionVector(version) > 1) {
-      // not stable yet
-      snapshots.get(version) match {
-        case Some(foundDataEntries) =>
-          snapshots.addOne((version, foundDataEntries.updated(key, (envelope, DeletedDigest))))
-        case None =>
-          val newEnvelope = envelope.copy(version = VersionVector.empty) // remove version vector because information is redundant
-          val newDataEntries = Map.empty.updated(key, (newEnvelope, DeletedDigest))
-          snapshots.addOne((version, newDataEntries))
-      }
-    } else {
-      // stable: apply, than check if pending operations can be applied
-      updateLastStableSnapshot(key, envelope)
-
-      def findUpdateAndRemove(envelope: DataEnvelope): Unit = {
-        snapshots.find(snapshot => sumVersionVector(snapshot._1) == 1) match {
+    lastCommitted match {
+      case Some(last) =>
+        // check if key is found in last committed
+        val (vv, data) = last._2.get(key) match {
           case Some(d) =>
-            val version = d._1
-            d._2.foreach(p => updateLastStableSnapshot(p._1, p._2._1.copy(version = version)))
-            snapshots.remove(d._1)
-
-            findUpdateAndRemove(envelope)
-
-          case _ =>
+            // found key, check if data was concurrently modified
+            version.compareTo(last._1) match {
+              case VersionVector.Concurrent =>
+                val vv = version.merge(last._1)
+                val dd = newEnvelope.merge(d.data.asInstanceOf[newEnvelope.data.T])
+                (vv, last._2.updated(key, dd))
+              case _ =>
+                assert(false) // TODO: other cases ?
+                (version, last._2.updated(key, newEnvelope))
+            }
+          case None => (version, last._2.updated(key, newEnvelope))
         }
-      }
-
-      // check if other operations can be applied
-      findUpdateAndRemove(envelope)
+        committedTransactions.update(vv, data)
+      case None =>
     }
   }
 
-  def update(dataEntries: DataEntries, kvs: immutable.Iterable[(KeyId, DataEnvelope)]): Unit = {
-    kvs.foreach(k => update(dataEntries, k._1, k._2))
+  def commit(tid: Transaction.TransactionId): VersionVector = {
+    log.debug("SnapshotManager::commit(tid=" + tid + ")")
+
+    val res = currentTransactions.get(tid) match {
+      case Some(snapshot) =>
+        def increment = snapshot._2
+
+        val lastCommitted = committedTransactions.lastOption
+        val (newVV, newData) = lastCommitted match {
+          case Some(last) =>
+            snapshot._1._1.compareTo(last._1) match {
+              case VersionVector.Concurrent =>
+                // concurrent
+                val vv =
+                  if (increment) snapshot._1._1.merge(last._1).increment(selfUniqueAddress)
+                  else snapshot._1._1.merge(last._1)
+
+                // merge data
+                var dd = last._2
+                last._2.foreach(l => {
+                  snapshot._1._2.foreach(s => {
+                    if (s._1 == l._1) {
+                      dd = dd.updated(s._1, s._2.merge(l._2))
+                    } else {
+                      dd = dd.updated(s._1, s._2)
+                    }
+                  })
+                })
+
+                (vv, dd)
+              case _ =>
+                // not concurrent
+                val vv =
+                  if (increment) snapshot._1._1.merge(last._1).increment(selfUniqueAddress)
+                  else snapshot._1._1.merge(last._1)
+
+                (vv, snapshot._1._2)
+            }
+
+          case None =>
+            // there is no last committed : use snapshot
+            val vv =
+              if (increment) snapshot._1._1.increment(selfUniqueAddress)
+              else snapshot._1._1
+
+            (vv, snapshot._1._2)
+        }
+
+        committedTransactions.addOne((newVV, newData))
+        newVV
+      case None => VersionVector.empty
+    }
+
+    currentTransactions.remove(tid)
+    res
   }
 
 }

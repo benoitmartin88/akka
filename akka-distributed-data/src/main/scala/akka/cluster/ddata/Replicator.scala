@@ -4,36 +4,13 @@
 
 package akka.cluster.ddata
 
-import java.security.MessageDigest
-import java.util.Optional
-import java.util.concurrent.ThreadLocalRandom
-import java.util.concurrent.TimeUnit
-import java.util.function.{Function => JFunction}
-import scala.annotation.nowarn
-import scala.annotation.varargs
-import scala.collection.immutable
-import scala.collection.immutable.TreeSet
-import scala.collection.mutable
-import scala.concurrent.duration._
-import scala.concurrent.duration.FiniteDuration
-import scala.util.Failure
-import scala.util.Success
-import scala.util.Try
-import scala.util.control.NoStackTrace
-import scala.util.control.NonFatal
-import com.typesafe.config.Config
 import akka.actor.{Actor, ActorInitializationException, ActorLogging, ActorRef, ActorSelection, ActorSystem, Address, Cancellable, DeadLetterActorRef, DeadLetterSuppression, Deploy, ExtendedActorSystem, NoSerializationVerificationNeeded, OneForOneStrategy, Props, ReceiveTimeout, SupervisorStrategy, Terminated}
 import akka.annotation.InternalApi
-import akka.cluster.Cluster
 import akka.cluster.ClusterEvent._
-import akka.cluster.ClusterEvent.InitialStateAsEvents
-import akka.cluster.Member
-import akka.cluster.MemberStatus
-import akka.cluster.UniqueAddress
 import akka.cluster.ddata.DurableStore._
-import akka.cluster.ddata.Key.KeyId
-import akka.cluster.ddata.Key.KeyR
+import akka.cluster.ddata.Key.{KeyId, KeyR}
 import akka.cluster.ddata.Transaction.TransactionId
+import akka.cluster.{Cluster, Member, MemberStatus, UniqueAddress}
 import akka.dispatch.Dispatchers
 import akka.event.Logging
 import akka.remote.RARP
@@ -42,6 +19,18 @@ import akka.util.ByteString
 import akka.util.Helpers.toRootLowerCase
 import akka.util.JavaDurationConverters._
 import akka.util.ccompat._
+import com.typesafe.config.Config
+
+import java.security.MessageDigest
+import java.util.Optional
+import java.util.concurrent.{ThreadLocalRandom, TimeUnit}
+import java.util.function.{Function => JFunction}
+import scala.annotation.{nowarn, varargs}
+import scala.collection.immutable.TreeSet
+import scala.collection.{immutable, mutable}
+import scala.concurrent.duration.{FiniteDuration, _}
+import scala.util.control.{NoStackTrace, NonFatal}
+import scala.util.{Failure, Success, Try}
 
 @ccompatUsedUntil213
 object ReplicatorSettings {
@@ -576,8 +565,9 @@ object Replicator {
    * @param request The optional request context is included in the reply messages. This is a convenient way to pass contextual information (e.g. original sender) without having to use ask or maintain local correlation data structures.
    */
   final case class TwoPhaseCommitPrepare(tid: TransactionId, request: Option[Any] = None)
-    extends Command[ReplicatedData]
+      extends Command[ReplicatedData]
       with ReplicatorMessage {
+
     /**
      * Java API: `Get` value from local `Replicator`, i.e. `ReadLocal` consistency.
      */
@@ -589,7 +579,7 @@ object Replicator {
     def this(tid: TransactionId, request: Optional[Any]) =
       this(tid, Option(request.orElse(null)))
 
-    override def key: Key[ReplicatedData] = GCounterKey("A")  // TODO: this is a hack !
+    override def key: Key[ReplicatedData] = GCounterKey("A") // TODO: this is a hack !
   }
 
   sealed abstract class TwoPhaseCommitPrepareResponse extends NoSerializationVerificationNeeded {
@@ -601,14 +591,14 @@ object Replicator {
   }
 
   final case class TwoPhaseCommitPrepareSuccess(v: VersionVector, request: Option[Any])
-    extends TwoPhaseCommitPrepareResponse
+      extends TwoPhaseCommitPrepareResponse
       with ReplicatorMessage {
     override def result = true
     val version: VersionVector = v
   }
 
   final case class TwoPhaseCommitPrepareError(msg: String, request: Option[Any])
-    extends TwoPhaseCommitPrepareResponse
+      extends TwoPhaseCommitPrepareResponse
       with ReplicatorMessage {
     override def result = false
   }
@@ -618,7 +608,9 @@ object Replicator {
    * @param tid Transaction Id
    * @param request The optional request context is included in the reply messages. This is a convenient way to pass contextual information (e.g. original sender) without having to use ask or maintain local correlation data structures.
    */
-  final case class TwoPhaseCommitCommit(trxn: Transaction.Context, request: Option[Any] = None) extends Command[ReplicatedData] with ReplicatorMessage {
+  final case class TwoPhaseCommitCommit(trxn: Transaction.Context, request: Option[Any] = None)
+      extends Command[ReplicatedData]
+      with ReplicatorMessage {
 
     /**
      * Java API: `Get` value from local `Replicator`, i.e. `ReadLocal` consistency.
@@ -631,7 +623,7 @@ object Replicator {
     def this(trxn: Transaction.Context, request: Optional[Any]) =
       this(trxn, Option(request.orElse(null)))
 
-    override def key: Key[ReplicatedData] = GCounterKey("A")  // TODO: this is a hack !
+    override def key: Key[ReplicatedData] = GCounterKey("A") // TODO: this is a hack !
   }
 
   sealed abstract class TwoPhaseCommitCommitResponse extends NoSerializationVerificationNeeded {
@@ -642,22 +634,21 @@ object Replicator {
   }
 
   final case class TwoPhaseCommitCommitSuccess(request: Option[Any])
-    extends TwoPhaseCommitCommitResponse
-      with ReplicatorMessage {
-  }
+      extends TwoPhaseCommitCommitResponse
+      with ReplicatorMessage {}
 
   final case class TwoPhaseCommitCommitError(msg: String, request: Option[Any])
-    extends TwoPhaseCommitCommitResponse
-      with ReplicatorMessage {
-  }
-
+      extends TwoPhaseCommitCommitResponse
+      with ReplicatorMessage {}
 
   /**
    * 2PC phase 2: abort
    * @param tid Transaction Id
    * @param request The optional request context is included in the reply messages. This is a convenient way to pass contextual information (e.g. original sender) without having to use ask or maintain local correlation data structures.
    */
-  final case class TwoPhaseCommitAbort(tid: TransactionId, request: Option[Any] = None) extends Command[ReplicatedData] with ReplicatorMessage {
+  final case class TwoPhaseCommitAbort(tid: TransactionId, request: Option[Any] = None)
+      extends Command[ReplicatedData]
+      with ReplicatorMessage {
 
     /**
      * Java API: `Get` value from local `Replicator`, i.e. `ReadLocal` consistency.
@@ -670,7 +661,7 @@ object Replicator {
     def this(tid: TransactionId, request: Optional[Any]) =
       this(tid, Option(request.orElse(null)))
 
-    override def key: Key[ReplicatedData] = GCounterKey("A")  // TODO: this is a hack !
+    override def key: Key[ReplicatedData] = GCounterKey("A") // TODO: this is a hack !
   }
 
   sealed abstract class TwoPhaseCommitAbortResponse extends NoSerializationVerificationNeeded {
@@ -681,9 +672,8 @@ object Replicator {
   }
 
   final case class TwoPhaseCommitAbortSuccess(request: Option[Any])
-    extends TwoPhaseCommitAbortResponse
-      with ReplicatorMessage {
-  }
+      extends TwoPhaseCommitAbortResponse
+      with ReplicatorMessage {}
 
   /**
    * Send this message to the local `Replicator` to retrieve a data value for the
@@ -693,7 +683,11 @@ object Replicator {
    * way to pass contextual information (e.g. original sender) without having to use `ask`
    * or maintain local correlation data structures.
    */
-  final case class Get[A <: ReplicatedData](key: Key[A], consistency: ReadConsistency, request: Option[Any] = None, transaction: Option[Transaction.Context] = None)
+  final case class Get[A <: ReplicatedData](
+      key: Key[A],
+      consistency: ReadConsistency,
+      request: Option[Any] = None,
+      transaction: Option[Transaction.Context] = None)
       extends Command[A]
       with ReplicatorMessage {
 
@@ -836,7 +830,7 @@ object Replicator {
       Update(key, writeConsistency, request, tid)(modifyWithInitial(initial, modify))
 
     def apply[A <: ReplicatedData](key: Key[A], writeConsistency: WriteConsistency, request: Option[Any])(
-      modify: Option[A] => A): Update[A] =
+        modify: Option[A] => A): Update[A] =
       Update(key, writeConsistency, request, None)(data => modify.apply(data))
 
     private def modifyWithInitial[A <: ReplicatedData](initial: A, modify: A => A): Option[A] => A = {
@@ -861,8 +855,11 @@ object Replicator {
    * function that only uses the data parameter and stable fields from enclosing scope. It must
    * for example not access `sender()` reference of an enclosing actor.
    */
-  final case class Update[A <: ReplicatedData](key: Key[A], writeConsistency: WriteConsistency, request: Option[Any], tid: Option[TransactionId])(
-      val modify: Option[A] => A)
+  final case class Update[A <: ReplicatedData](
+      key: Key[A],
+      writeConsistency: WriteConsistency,
+      request: Option[Any],
+      tid: Option[TransactionId])(val modify: Option[A] => A)
       extends Command[A]
       with NoSerializationVerificationNeeded {
 
@@ -1037,6 +1034,7 @@ object Replicator {
     case object DeltaPropagationTick
     case object RemovedNodePruningTick
     case object ClockTick
+    case object SnapshotGossipTick
     sealed trait SendingSystemUid {
       // FIXME #26566: we can change from Option to UniqueAddress after supporting mixed rolling updates for some versions
       def fromNode: Option[UniqueAddress]
@@ -1208,7 +1206,9 @@ object Replicator {
       }
 
       def estimatedSizeWithoutData: Int = {
-        version.estimatedSize + deltaVersions.estimatedSize + pruning.valuesIterator.map(_.estimatedSize + EstimatedSize.UniqueAddress).sum
+        version.estimatedSize + deltaVersions.estimatedSize + pruning.valuesIterator
+          .map(_.estimatedSize + EstimatedSize.UniqueAddress)
+          .sum
       }
     }
 
@@ -1239,6 +1239,14 @@ object Replicator {
         sendBack: Boolean,
         toSystemUid: Option[Long],
         fromSystemUid: Option[Long])
+        extends ReplicatorMessage
+        with DestinationSystemUid
+
+    final case class SnapshotGossip(
+        fromNode: UniqueAddress,
+        versionVector: VersionVector,
+        updatedData: Option[Map[KeyId, DataEnvelope]],
+        toSystemUid: Option[Long])
         extends ReplicatorMessage
         with DestinationSystemUid
 
@@ -1472,9 +1480,9 @@ object Replicator {
 final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLogging {
 
   import PruningState._
-  import Replicator._
-  import Replicator.Internal._
   import Replicator.Internal.DeltaPropagation.NoDeltaPlaceholder
+  import Replicator.Internal._
+  import Replicator._
   import settings._
 
   val cluster = Cluster(context.system)
@@ -1512,6 +1520,8 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
         context.system.scheduler.scheduleWithFixedDelay(pruningInterval, pruningInterval, self, RemovedNodePruningTick))
     else None
   val clockTask = context.system.scheduler.scheduleWithFixedDelay(gossipInterval, gossipInterval, self, ClockTick)
+  val snapshotGossipTask =
+    context.system.scheduler.scheduleWithFixedDelay(gossipInterval, gossipInterval, self, SnapshotGossipTick)
 
   val serializer = SerializationExtension(context.system).serializerFor(classOf[DataEnvelope])
   val maxPruningDisseminationNanos = maxPruningDissemination.toNanos
@@ -1603,7 +1613,9 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
 
   // inflight data (uncommitted transaction)
 //  key: KeyR, writeConsistency: WriteConsistency, envelope: DataEnvelope, req: Option[Any], delta: Option[ReplicatedDelta]
-  var inflightEntries = mutable.HashMap.empty[TransactionId, mutable.ListBuffer[(KeyR, WriteConsistency, DataEnvelope, Option[Any], Option[ReplicatedDelta])]]
+  var inflightEntries = mutable.HashMap.empty[
+    TransactionId,
+    mutable.ListBuffer[(KeyR, WriteConsistency, DataEnvelope, Option[Any], Option[ReplicatedDelta])]]
   // the actual data
   var dataEntries = Map.empty[KeyId, (DataEnvelope, Digest)]
   // keys that have changed, Changed event published to subscribers on FlushChanges
@@ -1663,6 +1675,7 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
     notifyTask.cancel()
     pruningTask.foreach(_.cancel())
     clockTask.cancel()
+    snapshotGossipTask.cancel()
   }
 
   def matchingRole(m: Member): Boolean = roles.subsetOf(m.roles)
@@ -1727,7 +1740,7 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
         // 0 until durable data has been loaded, used by test
         replyTo ! ReplicaCount(0)
 
-      case RemovedNodePruningTick | FlushChanges | GossipTick =>
+      case RemovedNodePruningTick | FlushChanges | GossipTick | SnapshotGossipTick =>
       // ignore scheduled ticks when loading durable data
       case TestFullStateGossip(enabled) =>
         fullStateGossipEnabled = enabled
@@ -1761,6 +1774,8 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
               receiveStatus(otherDigests, chunk, totChunks, fromSystemUid)
             case Gossip(updatedData, sendBack, _, fromSystemUid) =>
               receiveGossip(updatedData, sendBack, fromSystemUid)
+            case SnapshotGossip(node, vectorClocks, updatedData, _) =>
+              receiveSnapshotGossip(node, vectorClocks, updatedData)
           }
       }
 
@@ -1780,32 +1795,33 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
           }
       }
 
-    case TwoPhaseCommitPrepare(tid, req)  => receiveTwoPhaseCommitPrepare(tid, req)
+    case TwoPhaseCommitPrepare(tid, req)   => receiveTwoPhaseCommitPrepare(tid, req)
     case TwoPhaseCommitCommit(trxn, req)   => receiveTwoPhaseCommitCommit(trxn, req)
-    case TwoPhaseCommitAbort(tid, req)    => receiveTwoPhaseCommitAbort(tid, req)
-    case Get(key, consistency, req, trxn)    => receiveGet(key, consistency, req, trxn)
-    case u @ Update(key, writeC, req, tid)  => receiveUpdate(tid, key, u.modify, writeC, req)
-    case ReadRepair(key, envelope)     => receiveReadRepair(key, envelope)
-    case FlushChanges                  => receiveFlushChanges()
-    case DeltaPropagationTick          => receiveDeltaPropagationTick()
-    case GossipTick                    => receiveGossipTick()
-    case ClockTick                     => receiveClockTick()
-    case Subscribe(key, subscriber)    => receiveSubscribe(key, subscriber)
-    case Unsubscribe(key, subscriber)  => receiveUnsubscribe(key, subscriber)
-    case Terminated(ref)               => receiveTerminated(ref)
-    case MemberJoined(m)               => receiveMemberJoining(m)
-    case MemberWeaklyUp(m)             => receiveMemberWeaklyUp(m)
-    case MemberUp(m)                   => receiveMemberUp(m)
-    case MemberExited(m)               => receiveMemberExiting(m)
-    case MemberRemoved(m, _)           => receiveMemberRemoved(m)
-    case evt: MemberEvent              => receiveOtherMemberEvent(evt.member)
-    case UnreachableMember(m)          => receiveUnreachable(m)
-    case ReachableMember(m)            => receiveReachable(m)
-    case GetKeyIds                     => receiveGetKeyIds()
-    case Delete(key, consistency, req) => receiveDelete(key, consistency, req)
-    case RemovedNodePruningTick        => receiveRemovedNodePruningTick()
-    case GetReplicaCount               => receiveGetReplicaCount()
-    case TestFullStateGossip(enabled)  => fullStateGossipEnabled = enabled
+    case TwoPhaseCommitAbort(tid, req)     => receiveTwoPhaseCommitAbort(tid, req)
+    case Get(key, consistency, req, trxn)  => receiveGet(key, consistency, req, trxn)
+    case u @ Update(key, writeC, req, tid) => receiveUpdate(tid, key, u.modify, writeC, req)
+    case ReadRepair(key, envelope)         => receiveReadRepair(key, envelope)
+    case FlushChanges                      => receiveFlushChanges()
+    case DeltaPropagationTick              => receiveDeltaPropagationTick()
+    case GossipTick                        => receiveGossipTick()
+    case SnapshotGossipTick                => receiveSnapshotGossipTick(None)
+    case ClockTick                         => receiveClockTick()
+    case Subscribe(key, subscriber)        => receiveSubscribe(key, subscriber)
+    case Unsubscribe(key, subscriber)      => receiveUnsubscribe(key, subscriber)
+    case Terminated(ref)                   => receiveTerminated(ref)
+    case MemberJoined(m)                   => receiveMemberJoining(m)
+    case MemberWeaklyUp(m)                 => receiveMemberWeaklyUp(m)
+    case MemberUp(m)                       => receiveMemberUp(m)
+    case MemberExited(m)                   => receiveMemberExiting(m)
+    case MemberRemoved(m, _)               => receiveMemberRemoved(m)
+    case evt: MemberEvent                  => receiveOtherMemberEvent(evt.member)
+    case UnreachableMember(m)              => receiveUnreachable(m)
+    case ReachableMember(m)                => receiveReachable(m)
+    case GetKeyIds                         => receiveGetKeyIds()
+    case Delete(key, consistency, req)     => receiveDelete(key, consistency, req)
+    case RemovedNodePruningTick            => receiveRemovedNodePruningTick()
+    case GetReplicaCount                   => receiveGetReplicaCount()
+    case TestFullStateGossip(enabled)      => fullStateGossipEnabled = enabled
   }
 
   def receiveTwoPhaseCommitPrepare(tid: TransactionId, req: Option[Any]): Unit = {
@@ -1817,7 +1833,8 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
     } else {
       log.debug("Transaction id " + tid + " prepare OK")
       inflightEntries.update(tid, new mutable.ListBuffer())
-      TwoPhaseCommitPrepareSuccess(snapshotManager.currentVersionVector, req)
+      val snapshot = snapshotManager.transactionPrepare(tid)
+      TwoPhaseCommitPrepareSuccess(snapshot._1, req)
     }
 
     replyTo ! reply
@@ -1826,29 +1843,26 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
   def receiveTwoPhaseCommitCommit(trxn: Transaction.Context, req: Option[Any]): Unit = {
     log.info("Received TwoPhaseCommitCommit for transaction [{}].", trxn)
 
-    def updatedVectorClock(envelope: DataEnvelope): DataEnvelope = {
-      envelope.copy(version = snapshotManager.currentVersionVector)
-    }
-
     if (!inflightEntries.contains(trxn.tid)) {
-      replyTo ! TwoPhaseCommitCommitError("no transaction with id " + trxn.tid + ": prepare not called or wrong transaction id", req)
+      replyTo ! TwoPhaseCommitCommitError(
+        "no transaction with id " + trxn.tid + ": prepare not called or wrong transaction id",
+        req)
     } else {
+      val ops = inflightEntries(trxn.tid)
 
-      val keysAndValues = mutable.ListBuffer.empty[(KeyId, DataEnvelope)]
+      if (ops.nonEmpty) {
+        val keysAndValues = mutable.ListBuffer.empty[(KeyId, DataEnvelope)]
+        for ((key, _, envelope, _, _) <- ops) {
+          keysAndValues.addOne((key.id, envelope))
+//          handleUpdate(key, writeConsistency, envelope, req, delta, sendReply = false)
+        }
 
-      if(inflightEntries.nonEmpty) snapshotManager.increment(selfUniqueAddress)
-
-      for ((key, writeConsistency, envelope, req, delta) <- inflightEntries(trxn.tid)) {
-        log.debug("[{}] - key= [{}] handleUpdate() ", trxn.tid, key)
-        val newEnvelope = updatedVectorClock(envelope)
-        keysAndValues += ((key.id, newEnvelope))
-        handleUpdate(key, writeConsistency, newEnvelope, req, delta, sendReply = false)
+        snapshotManager.update(trxn.tid, keysAndValues.result().toMap)
+        receiveSnapshotGossipTick(Some(keysAndValues.toMap))
       }
 
       inflightEntries.remove(trxn.tid) // TODO: what if there is an error ?
       assert(!inflightEntries.contains(trxn.tid))
-
-      snapshotManager.update(dataEntries, keysAndValues.result())
 
       replyTo ! TwoPhaseCommitCommitSuccess(req)
     }
@@ -1878,7 +1892,7 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
       val tid = trxn.get.tid
 
       if (inflightEntries.contains(tid)) {
-        val reply = if(inflightEntries(tid).exists(_._1 == key)) {
+        val reply = if (inflightEntries(tid).exists(_._1 == key)) {
           // found value
           log.debug("[{}] - found value for key [{}].", trxn, key)
 
@@ -1886,11 +1900,12 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
           GetSuccess(key, req)(data)
         } else {
           // no value for key in inflightEntries, check snapshot
-          log.debug("[{}] - could not find a value for key [{}] in inflightEntries. Checking local entries.", tid, key)
+          log.debug("[{}] - could not find a value for key [{}] in inflightEntries. Checking snapshots.", tid, key)
 
-          snapshotManager.get(trxn.get.version, key.id) match {
+          // TODO
+          snapshotManager.get(trxn.get.tid, key.id) match {
             case Some(data) => GetSuccess(key, req)(data)
-            case None => NotFound(key, req)
+            case None       => NotFound(key, req)
           }
 
 //          handleGet(key, ReadLocal, req, trxn)
@@ -1903,14 +1918,18 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
     }
   }
 
-  def handleGet(key: KeyR, consistency: ReadConsistency, req: Option[Any], trxn: Option[Transaction.Context] = None): Unit = {
+  def handleGet(
+      key: KeyR,
+      consistency: ReadConsistency,
+      req: Option[Any],
+      trxn: Option[Transaction.Context] = None): Unit = {
 
-    if(trxn.nonEmpty) {
+    if (trxn.nonEmpty) {
 //      assert(!trxn.get.version.isEmpty)
       // in a transaction with causal context.
-      val reply = snapshotManager.get(trxn.get.version, key.id) match {
+      val reply = snapshotManager.get(trxn.get.tid, key.id) match {
         case Some(data) => GetSuccess(key, req)(data)
-        case None => NotFound(key, req)
+        case None       => NotFound(key, req)
       }
       replyTo ! reply
     } else {
@@ -1919,7 +1938,7 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
         val reply = localValue match {
           case Some(DataEnvelope(DeletedData, _, _, _)) => GetDataDeleted(key, req)
           case Some(DataEnvelope(data, _, _, _))        => GetSuccess(key, req)(data)
-          case None                                  => NotFound(key, req)
+          case None                                     => NotFound(key, req)
         }
         replyTo ! reply
       } else {
@@ -2014,7 +2033,13 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
     }
   }
 
-  def handleUpdate(key: KeyR, writeConsistency: WriteConsistency, envelope: DataEnvelope, req: Option[Any], delta: Option[ReplicatedDelta], sendReply: Boolean = true): Unit = {
+  def handleUpdate(
+      key: KeyR,
+      writeConsistency: WriteConsistency,
+      envelope: DataEnvelope,
+      req: Option[Any],
+      delta: Option[ReplicatedDelta],
+      sendReply: Boolean = true): Unit = {
     // handle the delta
     delta match {
       case Some(d) => deltaPropagationSelector.update(key.id, d)
@@ -2106,7 +2131,7 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
   def write(key: KeyId, writeEnvelope: DataEnvelope): Option[DataEnvelope] = {
     getData(key) match {
       case someEnvelope @ Some(envelope) if envelope eq writeEnvelope => someEnvelope
-      case Some(DataEnvelope(DeletedData, _, _, _))                      => Some(DeletedEnvelope) // already deleted
+      case Some(DataEnvelope(DeletedData, _, _, _))                   => Some(DeletedEnvelope) // already deleted
       case Some(envelope @ DataEnvelope(existingData @ _, _, _, _)) =>
         try {
           // DataEnvelope will mergeDelta when needed
@@ -2252,14 +2277,14 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
   def getDeltaSeqNr(key: KeyId, fromNode: UniqueAddress): Long =
     dataEntries.get(key) match {
       case Some((DataEnvelope(_, _, deltaVersions, _), _)) => deltaVersions.versionAt(fromNode)
-      case None                                         => 0L
+      case None                                            => 0L
     }
 
   def isNodeRemoved(node: UniqueAddress, keys: Iterable[KeyId]): Boolean = {
     removedNodes.contains(node) || (keys.exists(key =>
       dataEntries.get(key) match {
         case Some((DataEnvelope(_, pruning, _, _), _)) => pruning.contains(node)
-        case None                                   => false
+        case None                                      => false
       }))
   }
 
@@ -2321,7 +2346,9 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
             log.debug("Skipping DeltaPropagation from [{}] because that node has been removed", fromNode.address)
         } else {
           deltas.foreach {
-            case (key, Delta(envelope @ DataEnvelope(_: RequiresCausalDeliveryOfDeltas, _, _, _), fromSeqNr, toSeqNr)) =>
+            case (
+                key,
+                Delta(envelope @ DataEnvelope(_: RequiresCausalDeliveryOfDeltas, _, _, _), fromSeqNr, toSeqNr)) =>
               val currentSeqNr = getDeltaSeqNr(key, fromNode)
               if (currentSeqNr >= toSeqNr) {
                 if (isDebugEnabled)
@@ -2371,6 +2398,24 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
   def receiveGossipTick(): Unit = {
     if (fullStateGossipEnabled)
       selectRandomNode(allNodes.toVector).foreach(gossipTo)
+  }
+
+  def receiveSnapshotGossipTick(updatedData: Option[Map[KeyId, DataEnvelope]]): Unit = {
+    println("=================== receiveSnapshotGossipTick() updatedData=" + updatedData)
+    selectRandomNode(allNodes.toVector).foreach(address => snapshotGossipTo(address, updatedData))
+  }
+
+  def snapshotGossipTo(address: UniqueAddress, updatedData: Option[Map[KeyId, DataEnvelope]]): Unit = {
+    val to = replica(address)
+    val toSystemUid = Some(address.longUid)
+
+    val msg = SnapshotGossip(
+      selfUniqueAddress,
+      snapshotManager.committedTransactions.last._1, // TODO check this !
+      updatedData,
+      toSystemUid)
+
+    to ! msg
   }
 
   def gossipTo(address: UniqueAddress): Unit = {
@@ -2511,9 +2556,6 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
     var replyKeys = Set.empty[KeyId]
     updatedData.foreach {
       case (key, envelope) =>
-
-        snapshotManager.update(dataEntries, key, envelope)
-
         val hadData = dataEntries.contains(key)
         writeAndStore(key, envelope, reply = false)
         if (sendBack) getData(key) match {
@@ -2527,6 +2569,28 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
       createGossipMessages(replyKeys, sendBack = false, fromSystemUid).foreach { g =>
         replyTo ! g
       }
+    }
+  }
+
+  def receiveSnapshotGossip(
+      from: UniqueAddress,
+      versionVector: VersionVector,
+      updatedData: Option[Map[KeyId, DataEnvelope]]): Unit = {
+    if (log.isDebugEnabled)
+      log.debug(
+        "Received SnapshotGossip from [{}], from=[{}], versionVector=[{}], updatedData=[{}].",
+        replyTo.path.address,
+        from,
+        versionVector,
+        updatedData)
+
+    snapshotManager.updateKnownVersionVectors(from, versionVector)
+
+    updatedData match {
+      case Some(p) =>
+        println(">>> updatedData=" + updatedData)
+        snapshotManager.updateFromGossip(p)
+      case _ =>
     }
   }
 
@@ -2856,8 +2920,8 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
     with ActorLogging {
 
   import ReadWriteAggregator._
-  import Replicator._
   import Replicator.Internal._
+  import Replicator._
 
   override def timeout: FiniteDuration = consistency.timeout
 
@@ -3001,8 +3065,8 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
     with ActorLogging {
 
   import ReadWriteAggregator._
-  import Replicator._
   import Replicator.Internal._
+  import Replicator._
 
   override def timeout: FiniteDuration = consistency.timeout
 

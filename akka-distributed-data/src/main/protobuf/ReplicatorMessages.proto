@@ -109,6 +109,17 @@ message Gossip {
   optional sfixed64 fromSystemUid = 4;
 }
 
+message SnapshotGossip {
+  message Entry {
+    required string key = 1;
+    required DataEnvelope envelope = 2;
+  }
+  required UniqueAddress fromNode = 1;
+  required VersionVector versionVector = 2;
+  repeated Entry entries = 3;
+  optional sfixed64 toSystemUid = 4;
+}
+
 message DeltaPropagation {
   message Entry {
     required string key = 1;
