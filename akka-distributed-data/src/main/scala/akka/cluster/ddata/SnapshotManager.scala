@@ -58,18 +58,21 @@ private[akka] class SnapshotManager(
    * Used for transaction start
    * TODO: strip empty vv ?
    */
-  private def latestStableSnapshot: Snapshot = {
-
+  private[akka] def latestStableSnapshot: Snapshot = {
     lastestLocalSnapshot._1.compareTo(VersionVector.empty) match {
       case VersionVector.Same =>
-        println("!!!!!! latestStableSnapshot= " + globalStableSnapshot)
         globalStableSnapshot
       case _ =>
         val vv = globalStableSnapshot._1.merge(lastestLocalSnapshot._1)
         val data = globalStableSnapshot._2 ++ lastestLocalSnapshot._2
-
-        println("!!!!!! latestStableSnapshot= " + (vv, data))
         (vv, data)
+    }
+  }
+
+  private[akka] def latestStableSnapshotVersionVector: VersionVector = {
+    lastestLocalSnapshot._1.compareTo(VersionVector.empty) match {
+      case VersionVector.Same => globalStableSnapshot._1
+      case _                  => globalStableSnapshot._1.merge(lastestLocalSnapshot._1)
     }
   }
 
@@ -166,23 +169,29 @@ private[akka] class SnapshotManager(
    * Does not increment vector clock
    */
   private def updateFromGossip(version: VersionVector, key: KeyId, envelope: DataEnvelope): Unit = {
-    println("SnapshotManager::updateFromGossip(key=" + key + ", envelope=" + envelope + ")")
+    println("SnapshotManager::updateFromGossip(version=" + version + ", key=" + key + ", envelope=" + envelope + ")")
 
     // check if key is found in last committed
     val (vv, data) = lastestLocalSnapshot._2.get(key) match {
       case Some(d) =>
+        // TODO: is this correct ? do I need to check if data was concurrently modified ?
+        // found key
+        val vv = version.merge(lastestLocalSnapshot._1)
+        val dd = envelope.merge(d.data.asInstanceOf[envelope.data.T])
+        (vv, lastestLocalSnapshot._2.updated(key, dd))
+
         // found key, check if data was concurrently modified
-        version.compareTo(lastestLocalSnapshot._1) match {
-          case VersionVector.Same | VersionVector.Concurrent | VersionVector.After =>
-            // received concurrent or more recent data: merge VV + data
-            val vv = version.merge(lastestLocalSnapshot._1)
-            val dd = envelope.merge(d.data.asInstanceOf[envelope.data.T])
-            (vv, lastestLocalSnapshot._2.updated(key, dd))
-          case _ =>
-            assert(false) // TODO: other cases ? what to do ?
-            (version, lastestLocalSnapshot._2.updated(key, envelope))
-        }
-      case None => (version, lastestLocalSnapshot._2.updated(key, envelope))
+//        version.compareTo(lastestLocalSnapshot._1) match {
+//          case VersionVector.Same | VersionVector.Concurrent | VersionVector.After =>
+//            // received concurrent or more recent data: merge VV + data
+//            val vv = version.merge(lastestLocalSnapshot._1)
+//            val dd = envelope.merge(d.data.asInstanceOf[envelope.data.T])
+//            (vv, lastestLocalSnapshot._2.updated(key, dd))
+//          case _ =>
+//            assert(false) // TODO: other cases ? what to do ?
+//            (version, lastestLocalSnapshot._2.updated(key, envelope))
+//        }
+      case None => (version.merge(lastestLocalSnapshot._1), lastestLocalSnapshot._2.updated(key, envelope))
     }
 
     lastestLocalSnapshot = (vv, data)

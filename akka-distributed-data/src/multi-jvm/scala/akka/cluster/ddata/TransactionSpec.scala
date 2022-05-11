@@ -78,7 +78,7 @@ class TransactionSpec extends MultiNodeSpec(TransactionSpec) with STMultiNodeSpe
     }
   }
 
-  "2PC abort" must {
+  "abort" must {
     "succeed without prior prepare" in {
       replicator ! TwoPhaseCommitAbort("42")
       expectMsg(TwoPhaseCommitAbortSuccess(None))
@@ -109,11 +109,11 @@ class TransactionSpec extends MultiNodeSpec(TransactionSpec) with STMultiNodeSpe
       // update key
       val c3 = GCounter() :+ 3
 
-      replicator ! Update(KeyB, GCounter(), WriteLocal, None, Option(ctx.tid))(_ :+ 3)
+      replicator ! Update(KeyB, GCounter(), WriteLocal, None, Some(ctx.tid))(_ :+ 3)
       expectMsg(UpdateSuccess(KeyB, None))
 
       // get with transaction context
-      replicator ! Get(KeyB, ReadLocal, None, Option(ctx))
+      replicator ! Get(KeyB, ReadLocal, None, Some(ctx))
       expectMsg(GetSuccess(KeyB, None)(c3)).dataValue should be(c3)
 
       // get without transaction context
@@ -125,7 +125,7 @@ class TransactionSpec extends MultiNodeSpec(TransactionSpec) with STMultiNodeSpe
       expectMsg(TwoPhaseCommitAbortSuccess(None))
 
       // get with transaction context
-      replicator ! Get(KeyB, ReadLocal, None, Option(ctx))
+      replicator ! Get(KeyB, ReadLocal, None, Some(ctx))
       expectMsg(NotFound(KeyB, None))
 
       // get without transaction context
@@ -134,7 +134,7 @@ class TransactionSpec extends MultiNodeSpec(TransactionSpec) with STMultiNodeSpe
     }
   }
 
-  "2PC commit" must {
+  "commit" must {
     val ctx = Transaction.Context(replicator, testActor)
 
     "fail if prepare has not been called" in {
@@ -153,27 +153,21 @@ class TransactionSpec extends MultiNodeSpec(TransactionSpec) with STMultiNodeSpe
       expectMsg(TwoPhaseCommitCommitSuccess(None))
     }
 
-    "modify data after commit" in {
+    "modify data correctly" in {
       val KeyA = GCounterKey("A")
 
       // call prepare
       replicator ! TwoPhaseCommitPrepare(ctx.tid)
       expectMsg(TwoPhaseCommitPrepareSuccess(VersionVector(selfUniqueAddress.uniqueAddress, 0), None))
 
-      // subscribe key
-      val changedProbe = TestProbe()
-      replicator ! Subscribe(KeyA, changedProbe.ref)
-      replicator ! Get(KeyA, ReadLocal)
-      expectMsg(NotFound(KeyA, None))
-
       // update key
       val c3 = GCounter() :+ 3
 
-      replicator ! Update(KeyA, GCounter(), WriteLocal, None, Option(ctx.tid))(_ :+ 3)
+      replicator ! Update(KeyA, GCounter(), WriteLocal, None, Some(ctx.tid))(_ :+ 3)
       expectMsg(UpdateSuccess(KeyA, None))
 
       // get with transaction context
-      replicator ! Get(KeyA, ReadLocal, None, Option(ctx))
+      replicator ! Get(KeyA, ReadLocal, None, Some(ctx))
       expectMsg(GetSuccess(KeyA, None)(c3)).dataValue should be(c3)
 
       // get without transaction context
@@ -183,7 +177,6 @@ class TransactionSpec extends MultiNodeSpec(TransactionSpec) with STMultiNodeSpe
       // commit
       replicator ! TwoPhaseCommitCommit(ctx)
       expectMsg(TwoPhaseCommitCommitSuccess(None))
-//      changedProbe.expectMsg(Changed(KeyA)(c3)).dataValue should be(c3)
 
       // second commit should fail
       replicator ! TwoPhaseCommitCommit(ctx)
@@ -192,24 +185,37 @@ class TransactionSpec extends MultiNodeSpec(TransactionSpec) with STMultiNodeSpe
           "no transaction with id " + ctx.tid + ": prepare not called or wrong transaction id",
           None))
 
-      // TODO Get
+      // get from a second context
+      val ctx2 = Transaction.Context(replicator, testActor)
+      // prepare
+      replicator ! TwoPhaseCommitPrepare(ctx2.tid)
+      expectMsg(TwoPhaseCommitPrepareSuccess(VersionVector(selfUniqueAddress.uniqueAddress, 1), None))
+      // get with transaction context
+      replicator ! Get(KeyA, ReadLocal, None, Some(ctx2))
+      expectMsg(GetSuccess(KeyA, None)(c3)).dataValue should be(c3)
+      // commit
+      replicator ! TwoPhaseCommitCommit(ctx2)
+      expectMsg(TwoPhaseCommitCommitSuccess(None))
     }
   }
 
   "Transaction" must {
 
-    "generate a correct id" in {
+    "instantiate correctly" in {
       val t1 = new Transaction(replicator, testActor, (_) => None)
       t1.id shouldBe a[TransactionId]
       t1.id should not be None
+      t1.context.tid should not be (None)
+//      t1.context.version should be(VersionVector.empty)
+      t1.context.replicator should be(replicator)
+      t1.context.actor should be(testActor)
 
       val t2 = new Transaction(replicator, testActor, (_) => None)
       t1.id should not be None
-
       (t1.id should not).equal(t2.id)
     }
 
-    "commit an empty without error when empty" in {
+    "commit without error when no operations" in {
       val t1 = new Transaction(replicator, testActor, (_) => {})
       t1.commit() should be(true)
 
@@ -217,9 +223,54 @@ class TransactionSpec extends MultiNodeSpec(TransactionSpec) with STMultiNodeSpe
       t2.commit() should be(true)
     }
 
-    "replicate updates" in {
-      val KEY = FlagKey("F")
-      var f1 = Flag()
+    // TODO: handle exception in operations
+    // TODO: delete key
+
+    "abort without error when no operations" in {
+      val t1 = new Transaction(replicator, testActor, (_) => {})
+      t1.abort() // TODO: what should be asserted ?
+
+      val t2 = new Transaction(replicator, testActor, (_) => None)
+      t2.abort()
+    }
+
+    "read own write in same transaction on same node" in {
+      val t1 = new Transaction(replicator, testActor, (ctx) => {
+        val KEY = FlagKey("F1")
+        var f1 = Flag()
+
+        f1.enabled should be(false)
+        f1 = f1.switchOn
+        f1.enabled should be(true)
+
+        // update
+        ctx.update(KEY)(f1)
+        expectMsg(UpdateSuccess(KEY, None))
+
+        // read own write
+        ctx.get(KEY)
+        expectMsg(GetSuccess(KEY, None)(f1)).dataValue should be(f1)
+      })
+
+      t1.commit() should be(true)
+    }
+
+    "read own write in second transaction on same node" in {
+      val t1 = new Transaction(replicator, testActor, (ctx) => {
+        val KEY = FlagKey("F1")
+        val f1 = Flag().switchOn
+
+        // read own write
+        ctx.get(KEY)
+        expectMsg(GetSuccess(KEY, None)(f1)).dataValue should be(f1)
+      })
+
+      t1.commit() should be(true)
+    }
+
+    "replicate updates correctly on multiple nodes" in {
+      val KEY = FlagKey("F2")
+      val flag = Flag().switchOn
 
       join(first, first)
       join(second, first)
@@ -235,60 +286,97 @@ class TransactionSpec extends MultiNodeSpec(TransactionSpec) with STMultiNodeSpe
 
       enterBarrier("2-nodes")
 
+      /*
+        On first node, write data
+       */
       runOn(first) {
-        f1.enabled should be(false)
-
         val t1 = new Transaction(replicator, testActor, (ctx) => {
-          println(">>>>>>>>>>> 1 tid=" + ctx.tid + ", version=" + ctx.version)
-          ctx.version.isEmpty should be(false)
-
-          f1.enabled should be(false)
-          f1 = f1.switchOn
-          f1.enabled should be(true)
-
           // update
-          //        ctx.update(KEY)(_.get.switchOn)
-          ctx.update(KEY)(f1)
+          ctx.update(KEY)(flag)
           expectMsg(UpdateSuccess(KEY, None))
 
           // read own write
           ctx.get(KEY)
-          expectMsg(GetSuccess(KEY, None)(f1)).dataValue should be(f1)
+          expectMsg(GetSuccess(KEY, None)(flag)).dataValue should be(flag)
         })
-
         t1.commit() should be(true)
 
         // local read from previous transaction
         val t2 = new Transaction(replicator, testActor, (ctx) => {
-          println(">>>>>>>>>>> 2 tid=" + ctx.tid + ", version=" + ctx.version)
-          ctx.version.isEmpty should be(false)
-
           ctx.get(KEY)
-          expectMsg(GetSuccess(KEY, None)(f1)).dataValue should be(f1)
+          expectMsg(GetSuccess(KEY, None)(flag)).dataValue should be(flag)
         })
-
         t2.commit() should be(true)
       }
 
       enterBarrier("update flag")
 
+      /*
+        On second node, wait for replication and read
+       */
       runOn(second) {
         within(10.seconds) {
           awaitAssert({
             val t = new Transaction(replicator, testActor, (ctx) => {
-              println(">>>>>>>>>>> 3 tid=" + ctx.tid + ", version=" + ctx.version)
-              ctx.version.isEmpty should be(false)
-
               ctx.get(KEY)
-              expectMsg(GetSuccess(KEY, None)(f1))
+              expectMsg(GetSuccess(KEY, None)(flag))
             })
-
             t.commit() should be(true)
           }, interval = 1.second)
         }
       }
 
       enterBarrierAfterTestStep()
+    }
+
+    "converge after many concurrent updates" in within(30.seconds) {
+      join(third, first)
+      join(third, second)
+
+      runOn(first, second, third) {
+        within(10.seconds) {
+          awaitAssert {
+            replicator ! GetReplicaCount
+            expectMsg(ReplicaCount(3))
+          }
+        }
+      }
+      enterBarrier("3-nodes")
+
+      val KeyG = GCounterKey("G")
+
+      runOn(first, second, third) {
+        var c = GCounter()
+
+        val t = new Transaction(replicator, testActor, (ctx) => {
+          for (_ <- 0 until 100) {
+            c :+= 1
+            ctx.update(KeyG)(c)
+          }
+          val results = receiveN(100)
+          results.map(_.getClass).toSet should be(Set(classOf[UpdateSuccess[_]]))
+        })
+        t.commit() should be(true)
+      }
+      enterBarrier("100-updates-done")
+
+      runOn(first, second, third) {
+        within(20.seconds) {
+          awaitAssert({
+            val t = new Transaction(replicator, testActor, (ctx) => {
+              ctx.get(KeyG)
+              val c = expectMsgPF() { case g @ GetSuccess(KeyG, _) => g.get(KeyG) }
+              c.value should be(3 * 100)
+            })
+            t.commit() should be(true)
+          }, interval = 5.second)
+        }
+      }
+      enterBarrierAfterTestStep()
+    }
+
+    "maintain causality" in {
+      // TODO
     }
 
   }

@@ -1804,7 +1804,7 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
     case FlushChanges                      => receiveFlushChanges()
     case DeltaPropagationTick              => receiveDeltaPropagationTick()
     case GossipTick                        => receiveGossipTick()
-    case SnapshotGossipTick                => triggerSnapshotGossip(None, None)
+    case SnapshotGossipTick                => triggerSnapshotGossip(Some(snapshotManager.latestStableSnapshotVersionVector), None)
     case ClockTick                         => receiveClockTick()
     case Subscribe(key, subscriber)        => receiveSubscribe(key, subscriber)
     case Unsubscribe(key, subscriber)      => receiveUnsubscribe(key, subscriber)
@@ -2368,8 +2368,9 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
   }
 
   def triggerSnapshotGossip(version: Option[VersionVector], updatedData: Option[Map[KeyId, DataEnvelope]]): Unit = {
-    println("=================== triggerSnapshotGossip() updatedData=" + updatedData)
-    selectRandomNode(allNodes.toVector).foreach(address => snapshotGossipTo(address, version, updatedData))
+    println("=================== triggerSnapshotGossip() version=" + version + ", updatedData=" + updatedData)
+    // broadcast to all known nodes
+    allNodes.foreach(address => snapshotGossipTo(address, version, updatedData))  // TODO: can this be better ?
   }
 
   def snapshotGossipTo(
