@@ -1616,11 +1616,6 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
   var allReachableClockTime = 0L
   var unreachable = Set.empty[UniqueAddress]
 
-  // inflight data (uncommitted transaction)
-//  key: KeyR, writeConsistency: WriteConsistency, envelope: DataEnvelope, req: Option[Any], delta: Option[ReplicatedDelta]
-  var inflightEntries = mutable.HashMap.empty[
-    TransactionId,
-    mutable.ListBuffer[(KeyR, WriteConsistency, DataEnvelope, Option[Any], Option[ReplicatedDelta])]]
   // the actual data
   var dataEntries = Map.empty[KeyId, (DataEnvelope, Digest)]
   // keys that have changed, Changed event published to subscribers on FlushChanges
@@ -1832,12 +1827,13 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
   def receiveTwoPhaseCommitPrepare(tid: TransactionId, req: Option[Any]): Unit = {
     log.info("Received TwoPhaseCommitPrepare for transaction [{}].", tid)
 
-    val reply = if (inflightEntries.contains(tid)) {
+    snapshotManager.currentTransactions.contains(tid)
+
+    val reply = if (snapshotManager.currentTransactions.contains(tid)) {
       log.debug("Transaction id " + tid + " already inflight")
       TwoPhaseCommitPrepareError("Transaction id " + tid + " already inflight", req)
     } else {
       log.debug("Transaction id " + tid + " prepare OK")
-      inflightEntries.update(tid, new mutable.ListBuffer())
       val snapshot = snapshotManager.transactionPrepare(tid)
       TwoPhaseCommitPrepareSuccess(snapshot._1, req)
     }
@@ -1848,27 +1844,13 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
   def receiveTwoPhaseCommitCommit(trxn: Transaction.Context, req: Option[Any]): Unit = {
     log.info("Received TwoPhaseCommitCommit for transaction [{}].", trxn)
 
-    if (!inflightEntries.contains(trxn.tid)) {
+    if (!snapshotManager.currentTransactions.contains(trxn.tid)) {
       replyTo ! TwoPhaseCommitCommitError(
         "no transaction with id " + trxn.tid + ": prepare not called or wrong transaction id",
         req)
     } else {
-      val ops = inflightEntries(trxn.tid)
-
-      if (ops.nonEmpty) {
-        val keysAndValues = mutable.ListBuffer.empty[(KeyId, DataEnvelope)]
-        for ((key, _, envelope, _, _) <- ops) {
-          keysAndValues.addOne((key.id, envelope))
-//          handleUpdate(key, writeConsistency, envelope, req, delta, sendReply = false)
-        }
-
-        snapshotManager.update(trxn.tid, keysAndValues.toMap)
-        snapshotManager.commit(trxn.tid)
-        triggerSnapshotGossip(Some(trxn.version), Some(keysAndValues.toMap))
-      }
-
-      inflightEntries.remove(trxn.tid) // TODO: what if there is an error ?
-      assert(!inflightEntries.contains(trxn.tid))
+      triggerSnapshotGossip(Some(trxn.version), Some(snapshotManager.currentTransactions(trxn.tid)._1._2))
+      snapshotManager.commit(trxn.tid)
 
       replyTo ! TwoPhaseCommitCommitSuccess(req)
     }
@@ -1876,7 +1858,7 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
 
   def receiveTwoPhaseCommitAbort(tid: TransactionId, req: Option[Any]): Unit = {
     log.info("Received TwoPhaseCommitAbort for transaction [{}].", tid)
-    inflightEntries.remove(tid)
+    snapshotManager.abort(tid)
     replyTo ! TwoPhaseCommitAbortSuccess(req)
   }
 
@@ -1897,30 +1879,11 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
       // in a transaction
       val tid = trxn.get.tid
 
-      if (inflightEntries.contains(tid)) {
-        val reply = if (inflightEntries(tid).exists(_._1 == key)) {
-          // found value
-          log.debug("[{}] - found value for key [{}].", trxn, key)
-
-          val data = inflightEntries(tid).find(_._1 == key).get._3.data // find first entry for given key
-          GetSuccess(key, req)(data)
-        } else {
-          // no value for key in inflightEntries, check snapshot
-          log.debug("[{}] - could not find a value for key [{}] in inflightEntries. Checking snapshots.", tid, key)
-
-          // TODO
-          snapshotManager.get(trxn.get.tid, key.id) match {
-            case Some(data) => GetSuccess(key, req)(data)
-            case None       => NotFound(key, req)
-          }
-
-//          handleGet(key, ReadLocal, req, trxn)
-        }
-        replyTo ! reply // TODO: might be wrong, double send reply
-      } else {
-        // not inflight, check local
-        handleGet(key, ReadLocal, req, trxn)
+      val reply = snapshotManager.get(tid, key.id) match {
+        case Some(data) => GetSuccess(key, req)(data)
+        case None       => NotFound(key, req)
       }
+      replyTo ! reply
     }
   }
 
@@ -2028,7 +1991,7 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
           handleUpdate(key, writeConsistency, envelope, req, delta)
         } else {
           // in a transaction: save for later
-          inflightEntries(tid.get) += ((key, writeConsistency, envelope, req, delta))
+          snapshotManager.update(tid.get, key.id, envelope)
           replyTo ! UpdateSuccess(key, req)
           log.debug("[{}] - Update successful for key [{}]. replyTo=[{}]", tid, key, replyTo)
         }
@@ -2137,7 +2100,7 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
   def write(key: KeyId, writeEnvelope: DataEnvelope): Option[DataEnvelope] = {
     getData(key) match {
       case someEnvelope @ Some(envelope) if envelope eq writeEnvelope => someEnvelope
-      case Some(DataEnvelope(DeletedData, _, _))                   => Some(DeletedEnvelope) // already deleted
+      case Some(DataEnvelope(DeletedData, _, _))                      => Some(DeletedEnvelope) // already deleted
       case Some(envelope @ DataEnvelope(existingData @ _, _, _)) =>
         try {
           // DataEnvelope will mergeDelta when needed
@@ -2283,14 +2246,14 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
   def getDeltaSeqNr(key: KeyId, fromNode: UniqueAddress): Long =
     dataEntries.get(key) match {
       case Some((DataEnvelope(_, _, deltaVersions), _)) => deltaVersions.versionAt(fromNode)
-      case None                                            => 0L
+      case None                                         => 0L
     }
 
   def isNodeRemoved(node: UniqueAddress, keys: Iterable[KeyId]): Boolean = {
     removedNodes.contains(node) || (keys.exists(key =>
       dataEntries.get(key) match {
         case Some((DataEnvelope(_, pruning, _), _)) => pruning.contains(node)
-        case None                                      => false
+        case None                                   => false
       }))
   }
 
@@ -2352,9 +2315,7 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
             log.debug("Skipping DeltaPropagation from [{}] because that node has been removed", fromNode.address)
         } else {
           deltas.foreach {
-            case (
-                key,
-                Delta(envelope @ DataEnvelope(_: RequiresCausalDeliveryOfDeltas, _, _), fromSeqNr, toSeqNr)) =>
+            case (key, Delta(envelope @ DataEnvelope(_: RequiresCausalDeliveryOfDeltas, _, _), fromSeqNr, toSeqNr)) =>
               val currentSeqNr = getDeltaSeqNr(key, fromNode)
               if (currentSeqNr >= toSeqNr) {
                 if (isDebugEnabled)

@@ -64,13 +64,15 @@ class TransactionSpec extends MultiNodeSpec(TransactionSpec) with STMultiNodeSpe
     enterBarrier(from.name + "-joined")
   }
 
-  "2PC prepare" must {
-    "handle already existing transaction" in {
-      val tid = "41"
+  "prepare" must {
+    val tid = "41"
 
+    "return a correct version vector" in {
       replicator ! TwoPhaseCommitPrepare(tid)
       expectMsg(TwoPhaseCommitPrepareSuccess(VersionVector(selfUniqueAddress.uniqueAddress, 0), None))
+    }
 
+    "handle already existing transaction" in {
       replicator ! TwoPhaseCommitPrepare(tid)
       expectMsg(TwoPhaseCommitPrepareError("Transaction id " + tid + " already inflight", None))
     }

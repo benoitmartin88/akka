@@ -184,12 +184,13 @@ private[akka] class SnapshotManager(
           case Some(d) =>
             // found key, check if data was concurrently modified
             version.compareTo(last._1) match {
-              case VersionVector.Concurrent =>
+              case VersionVector.Concurrent | VersionVector.After =>
+                // received concurrent or more recent data: merge VV + data
                 val vv = version.merge(last._1)
                 val dd = envelope.merge(d.data.asInstanceOf[envelope.data.T])
                 (vv, last._2.updated(key, dd))
               case _ =>
-                assert(false) // TODO: other cases ?
+                assert(false) // TODO: other cases ? what to do ?
                 (version, last._2.updated(key, envelope))
             }
           case None => (version, last._2.updated(key, envelope))
@@ -254,6 +255,10 @@ private[akka] class SnapshotManager(
 
     currentTransactions.remove(tid)
     res
+  }
+
+  def abort(tid: Transaction.TransactionId): Unit = {
+    currentTransactions.remove(tid)
   }
 
 }
