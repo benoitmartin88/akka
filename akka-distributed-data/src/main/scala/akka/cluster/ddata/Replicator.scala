@@ -2368,7 +2368,7 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
   }
 
   def triggerSnapshotGossip(version: Option[VersionVector], updatedData: Option[Map[KeyId, DataEnvelope]]): Unit = {
-    println("=================== triggerSnapshotGossip() version=" + version + ", updatedData=" + updatedData)
+//    println("=================== triggerSnapshotGossip() version=" + version + ", updatedData=" + updatedData)
     // broadcast to all known nodes
     allNodes.foreach(address => snapshotGossipTo(address, version, updatedData))  // TODO: can this be better ?
   }

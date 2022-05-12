@@ -20,34 +20,27 @@ object SnapshotManager {
   type Snapshot = (VersionVector, DataEntries)
 
   val log: Logger = LoggerFactory.getLogger("akka.cluster.ddata.SnapshotManager")
-  var globalStableSnapshot: Snapshot = (VersionVector.empty, Map.empty)
 
   def apply(selfUniqueAddress: UniqueAddress): SnapshotManager = {
-    globalStableSnapshot = (VersionVector(selfUniqueAddress, 0), Map.empty)
     new SnapshotManager(
       selfUniqueAddress,
       mutable.Map.empty,
+      (VersionVector(selfUniqueAddress, 0), Map.empty),
       (VersionVector.empty, Map.empty),
       mutable.HashMap.empty[Transaction.TransactionId, (Snapshot, Boolean)])
   }
 }
 
-//private[akka] class Entry(
-//   val snapshot: DataEntries,
-//   val count: Int,
-//   val incremented: Boolean) {}
-
 private[akka] class SnapshotManager(
     val selfUniqueAddress: UniqueAddress,
     private val knownVersionVectors: mutable.Map[UniqueAddress, VersionVector],
+    var globalStableSnapshot: Snapshot,
     var lastestLocalSnapshot: Snapshot,
     val currentTransactions: mutable.HashMap[Transaction.TransactionId, (Snapshot, Boolean)]) {
   import SnapshotManager._
 
-  def globalStableSnapshot: Snapshot = SnapshotManager.globalStableSnapshot
-
   def transactionPrepare(tid: Transaction.TransactionId): Snapshot = {
-    println("SnapshotManager::transactionPrepare() tid=" + tid)
+    log.debug("SnapshotManager::transactionPrepare(tid=[{}])", tid)
     val res = latestStableSnapshot
     currentTransactions.update(tid, (res, false))
     res
@@ -81,8 +74,11 @@ private[akka] class SnapshotManager(
   def updateKnownVersionVectors(node: UniqueAddress, versionVector: VersionVector): Unit = {
     knownVersionVectors.update(node, versionVector)
     updateGlobalStableSnapshot()
-
-    println(">>>>>>>> GSS=" + globalStableSnapshot + ", knownVectorClocks=" + knownVersionVectors)
+    log.debug(
+      "SnapshotManager::updateKnownVersionVectors(node=[{}], versionVector=[{}]): GSS=[{}]",
+      node,
+      versionVector,
+      globalStableSnapshot)
   }
 
   def updateGlobalStableSnapshot(): Unit = {
@@ -121,9 +117,8 @@ private[akka] class SnapshotManager(
         })
         res
     }
-
-    SnapshotManager.globalStableSnapshot =
-      (newGssVv, SnapshotManager.globalStableSnapshot._2 ++ lastestLocalSnapshot._2)
+    // TODO: this is wrong ! GSS data should be latest before newGssVv, not lastestLocalSnapshot._2
+    globalStableSnapshot = (newGssVv, globalStableSnapshot._2 ++ lastestLocalSnapshot._2)
   }
 
   /**
@@ -132,7 +127,7 @@ private[akka] class SnapshotManager(
    * @return value associated to the given key
    */
   def get(tid: Transaction.TransactionId, key: KeyId): Option[ReplicatedData] = {
-    log.debug("SnapshotManager::get(tid=[{}], key=[{}], ", tid, key)
+    log.debug("SnapshotManager::get(tid=[{}], key=[{}])", tid, key)
 
     currentTransactions.get(tid) match {
       case Some(snapshot) =>
@@ -145,13 +140,12 @@ private[akka] class SnapshotManager(
   }
 
   def update(tid: Transaction.TransactionId, updatedData: Map[KeyId, DataEnvelope]): Unit = {
-    println("<<<<<<<< update() tid=" + tid + ", updatedData=" + updatedData)
+    log.debug("SnapshotManager::update(tid=[{}], updatedData=[{}])", tid, updatedData)
     updatedData.foreach(p => update(tid, p._1, p._2))
   }
 
   def update(tid: Transaction.TransactionId, key: KeyId, envelope: DataEnvelope): Unit = {
-    println("SnapshotManager::update() tid=" + tid + ", key=" + key + ", value=" + envelope.data)
-
+    log.debug("SnapshotManager::update(tid=[{}], key=[{}], envelope=[{}])", tid, key, envelope)
     currentTransactions.get(tid) match {
       case Some(d) =>
         val newData = d._1._2.updated(key, envelope)
@@ -161,7 +155,7 @@ private[akka] class SnapshotManager(
   }
 
   def updateFromGossip(version: VersionVector, updatedData: Map[KeyId, DataEnvelope]): Unit = {
-    println("<<<<<<<< updateFromGossip() version=" + version + ", updatedData=" + updatedData)
+    log.debug("SnapshotManager::updateFromGossip(version=[{}], updatedData=[{}])", version, updatedData)
     updatedData.foreach(p => updateFromGossip(version, p._1, p._2))
   }
 
@@ -169,7 +163,7 @@ private[akka] class SnapshotManager(
    * Does not increment vector clock
    */
   private def updateFromGossip(version: VersionVector, key: KeyId, envelope: DataEnvelope): Unit = {
-    println("SnapshotManager::updateFromGossip(version=" + version + ", key=" + key + ", envelope=" + envelope + ")")
+    log.debug("SnapshotManager::updateFromGossip(version=[{}], key=[{}], envelope=[{}])", version, key, envelope)
 
     // check if key is found in last committed
     val (vv, data) = lastestLocalSnapshot._2.get(key) match {
@@ -180,7 +174,7 @@ private[akka] class SnapshotManager(
         val dd = envelope.merge(d.data.asInstanceOf[envelope.data.T])
         (vv, lastestLocalSnapshot._2.updated(key, dd))
 
-        // found key, check if data was concurrently modified
+      // found key, check if data was concurrently modified
 //        version.compareTo(lastestLocalSnapshot._1) match {
 //          case VersionVector.Same | VersionVector.Concurrent | VersionVector.After =>
 //            // received concurrent or more recent data: merge VV + data
@@ -198,7 +192,7 @@ private[akka] class SnapshotManager(
   }
 
   def commit(tid: Transaction.TransactionId): VersionVector = {
-    log.debug("SnapshotManager::commit(tid=" + tid + ")")
+    log.debug("SnapshotManager::commit(tid=[{}])", tid)
 
     val res = currentTransactions.get(tid) match {
       case Some(snapshot) =>
@@ -243,6 +237,7 @@ private[akka] class SnapshotManager(
   }
 
   def abort(tid: Transaction.TransactionId): Unit = {
+    log.debug("SnapshotManager::abort(tid=[{}])", tid)
     currentTransactions.remove(tid)
   }
 

@@ -329,7 +329,7 @@ class TransactionSpec extends MultiNodeSpec(TransactionSpec) with STMultiNodeSpe
       enterBarrierAfterTestStep()
     }
 
-    "converge after many concurrent updates" in within(30.seconds) {
+    "converge after many concurrent updates in single transaction" in within(30.seconds) {
       join(third, first)
       join(third, second)
 
@@ -357,6 +357,53 @@ class TransactionSpec extends MultiNodeSpec(TransactionSpec) with STMultiNodeSpe
           results.map(_.getClass).toSet should be(Set(classOf[UpdateSuccess[_]]))
         })
         t.commit() should be(true)
+      }
+      enterBarrier("100-updates-done")
+
+      runOn(first, second, third) {
+        within(20.seconds) {
+          awaitAssert({
+            val t = new Transaction(replicator, testActor, (ctx) => {
+              ctx.get(KeyG)
+              val c = expectMsgPF() { case g @ GetSuccess(KeyG, _) => g.get(KeyG) }
+              c.value should be(3 * 100)
+            })
+            t.commit() should be(true)
+          }, interval = 5.second)
+        }
+      }
+      enterBarrierAfterTestStep()
+    }
+
+    "converge after many concurrent updates in many concurrent transactions" in within(30.seconds) {
+      join(third, first)
+      join(third, second)
+
+      runOn(first, second, third) {
+        within(10.seconds) {
+          awaitAssert {
+            replicator ! GetReplicaCount
+            expectMsg(ReplicaCount(3))
+          }
+        }
+      }
+      enterBarrier("3-nodes")
+
+      val KeyG = GCounterKey("G")
+
+      runOn(first, second, third) {
+        var c = GCounter()
+
+        for (_ <- 0 until 100) {
+
+          val t = new Transaction(replicator, testActor, (ctx) => {
+            c :+= 1
+            ctx.update(KeyG)(c)
+            expectMsg(UpdateSuccess(KeyG, None))
+          })
+          t.commit() should be(true)
+
+        }
       }
       enterBarrier("100-updates-done")
 
