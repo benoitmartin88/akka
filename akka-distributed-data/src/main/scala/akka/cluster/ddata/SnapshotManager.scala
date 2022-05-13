@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2021 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2021-2022 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.cluster.ddata
@@ -180,6 +180,15 @@ private[akka] class SnapshotManager(
             }
           })
 
+        // apply currentTransactionSnapshot
+        currentTransactionSnapshot._1._2.foreach(d => {
+          newData.get(d._1) match {
+            case Some(newDataValue) =>
+              newData.update(key, newDataValue.merge(d._2))
+            case None => newData.update(key, d._2)
+          }
+        })
+
         newData.get(key) match {
           case Some(d) => Some(d.data)
           case None    => None
@@ -208,10 +217,13 @@ private[akka] class SnapshotManager(
     log.debug("SnapshotManager::updateFromGossip(version=[{}], updatedData=[{}])", version, updatedData)
 //    updatedData.foreach(p => updateFromGossip(version, p._1, p._2))
 
-    def last: Snapshot = localSnapshots.last
+    def last: Snapshot = localSnapshots.lastOption match {
+      case Some(l) => l
+      case None    => globalStableSnapshot
+    }
 
     val commitVv = last._1.merge(version)
-    assert(commitVv.compareTo(last._1) == VersionVector.After)
+//    assert(commitVv.compareTo(last._1) == VersionVector.After)  // same or after
 
     // materialize before current snapshot
     val newData = mutable.Map.empty[KeyId, DataEnvelope]
@@ -233,13 +245,16 @@ private[akka] class SnapshotManager(
       })
     })
 
-    assert(newData.keySet == updatedData.keySet)
+//    assert(newData.keySet == updatedData.keySet)
     // apply currentTransactionSnapshot
     updatedData.foreach(kv => {
-      newData.update(kv._1, newData(kv._1).merge(kv._2))
+      newData.get(kv._1) match {
+        case Some(d) => newData.update(kv._1, d.merge(kv._2))
+        case None    => newData.update(kv._1, kv._2)
+      }
     })
 
-    localSnapshots.addOne((commitVv, newData.toMap))
+    if (newData.nonEmpty) localSnapshots.update(commitVv, newData.toMap)
   }
 
   def commit(tid: Transaction.TransactionId): VersionVector = {
