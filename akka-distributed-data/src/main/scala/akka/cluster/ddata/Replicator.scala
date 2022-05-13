@@ -2382,7 +2382,7 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
 
     val vv = version match {
       case Some(v) => v
-      case None => snapshotManager.lastestLocalSnapshot._1
+      case None => snapshotManager.localSnapshots.last._1
     }
 
     val msg = SnapshotGossip(
