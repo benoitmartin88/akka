@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014-2021 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2014-2022 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.stream.javadsl;
@@ -1346,6 +1346,12 @@ public class FlowTest extends StreamTest {
     final Flow<Integer, Integer, NotUsed> f = Flow.of(Integer.class).alsoTo(Sink.ignore());
     final Flow<Integer, Integer, String> f2 =
         Flow.of(Integer.class).alsoToMat(Sink.ignore(), (i, n) -> "foo");
+  }
+
+  @Test
+  public void mustBeAbleToUseAlsoToAll() {
+    final Flow<Integer, Integer, NotUsed> f =
+        Flow.of(Integer.class).alsoToAll(Sink.ignore(), Sink.ignore());
   }
 
   @Test

@@ -1,10 +1,11 @@
 /*
- * Copyright (C) 2015-2021 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2015-2022 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.stream.impl.fusing
 
 import scala.util.control.NoStackTrace
+
 import akka.stream.Supervision
 import akka.stream.testkit.StreamSpec
 import akka.util.ConstantFun

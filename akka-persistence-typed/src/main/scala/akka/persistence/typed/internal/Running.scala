@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016-2021 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2016-2022 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.persistence.typed.internal
@@ -384,7 +384,7 @@ private[akka] object Running {
     // Used by EventSourcedBehaviorTestKit to retrieve the state.
     def onGetState(get: GetState[S]): Behavior[InternalProtocol] = {
       get.replyTo ! GetStateReply(state.state)
-      this
+      tryUnstashOne(this)
     }
 
     def onGetSeenSequenceNr(get: GetSeenSequenceNr): Behavior[InternalProtocol] = {

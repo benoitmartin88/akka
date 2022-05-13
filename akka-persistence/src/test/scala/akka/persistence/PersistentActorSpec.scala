@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2021 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.persistence
@@ -1247,7 +1247,7 @@ abstract class PersistentActorSpec(config: Config) extends PersistenceSpec(confi
       acks should equal(expectedAcks)
     }
     "reply to the original sender() of a command, even when using persistAsync" in {
-      // sanity check, the setting of sender() for PersistentRepl is handled by PersistentActor currently
+      // the setting of sender() for PersistentRepl is handled by PersistentActor currently
       // but as we want to remove it soon, keeping the explicit test here.
       val persistentActor = asyncPersistThreeTimesPersistentActor
 

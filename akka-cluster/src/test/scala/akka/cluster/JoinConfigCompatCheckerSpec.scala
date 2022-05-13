@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2021 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.cluster
@@ -9,7 +9,6 @@ import scala.concurrent.duration._
 
 import com.typesafe.config.{ Config, ConfigFactory }
 
-import akka.testkit.GHExcludeTest
 import akka.testkit.{ AkkaSpec, LongRunningTest }
 
 object JoinConfigCompatCheckerSpec {
@@ -364,8 +363,7 @@ class JoinConfigCompatCheckerSpec extends AkkaSpec with ClusterTestKit {
 
     }
 
-    // FIXME https://github.com/akka/akka/issues/30843 (tag as LongRunningTest instead when fixed)
-    "NOT be allowed to re-join a cluster when one of its required properties are not available on cluster side" taggedAs GHExcludeTest in {
+    "NOT be allowed to re-join a cluster when one of its required properties are not available on cluster side" taggedAs LongRunningTest in {
 
       // this config is NOT compatible with the cluster config
       // because there is one missing required configuration property.

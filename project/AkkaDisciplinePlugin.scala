@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019-2021 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2019-2022 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka
@@ -38,7 +38,9 @@ object AkkaDisciplinePlugin extends AutoPlugin {
     "akka-persistence-typed",
     // references to deprecated PARSER fields in generated message formats?
     "akka-persistence-query",
-    "akka-docs")
+    "akka-docs",
+    // use varargs of `Graph` in alsoTo and etc operators
+    "akka-stream-tests")
 
   val looseProjects = Set(
     "akka-actor",

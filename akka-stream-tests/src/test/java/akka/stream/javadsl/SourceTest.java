@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014-2021 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2014-2022 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.stream.javadsl;
@@ -1147,6 +1147,12 @@ public class SourceTest extends StreamTest {
   }
 
   @Test
+  public void mustBeAbleToUseAlsoToAll() {
+    final Source<Integer, NotUsed> f =
+        Source.<Integer>empty().alsoToAll(Sink.ignore(), Sink.ignore());
+  }
+
+  @Test
   public void mustBeAbleToUseDivertTo() {
     final Source<Integer, NotUsed> f = Source.<Integer>empty().divertTo(Sink.ignore(), e -> true);
     final Source<Integer, String> f2 =
@@ -1179,16 +1185,21 @@ public class SourceTest extends StreamTest {
   }
 
   @Test
-  public void mustRunSourceAndIgnoreElementsItOutputsAndOnlySignalTheCompletion() {
+  public void mustRunSourceAndIgnoreElementsItOutputsAndOnlySignalTheCompletion() throws Exception {
     final Iterator<Integer> iterator = IntStream.range(1, 10).iterator();
     final Creator<Iterator<Integer>> input = () -> iterator;
     final Done completion =
-        Source.fromIterator(input).map(it -> it * 10).run(system).toCompletableFuture().join();
+        Source.fromIterator(input)
+            .map(it -> it * 10)
+            .run(system)
+            .toCompletableFuture()
+            .get(1, TimeUnit.SECONDS);
     assertEquals(Done.getInstance(), completion);
   }
 
   @Test
-  public void mustRunSourceAndIgnoreElementsItOutputsAndOnlySignalTheCompletionWithMaterializer() {
+  public void mustRunSourceAndIgnoreElementsItOutputsAndOnlySignalTheCompletionWithMaterializer()
+      throws Exception {
     final Materializer materializer = Materializer.createMaterializer(system);
     final Iterator<Integer> iterator = IntStream.range(1, 10).iterator();
     final Creator<Iterator<Integer>> input = () -> iterator;
@@ -1197,7 +1208,69 @@ public class SourceTest extends StreamTest {
             .map(it -> it * 10)
             .run(materializer)
             .toCompletableFuture()
-            .join();
+            .get(3, TimeUnit.SECONDS);
     assertEquals(Done.getInstance(), completion);
+  }
+
+  @Test
+  public void mustGenerateAFiniteFibonacciSequenceAsynchronously() {
+    final List<Integer> resultList =
+        Source.unfoldAsync(
+                Pair.create(0, 1),
+                (pair) -> {
+                  if (pair.first() > 10000000) {
+                    return CompletableFuture.completedFuture(Optional.empty());
+                  } else {
+                    return CompletableFuture.supplyAsync(
+                        () ->
+                            Optional.of(
+                                Pair.create(
+                                    Pair.create(pair.second(), pair.first() + pair.second()),
+                                    pair.first())),
+                        system.dispatcher());
+                  }
+                })
+            .runFold(
+                new ArrayList<Integer>(),
+                (list, next) -> {
+                  list.add(next);
+                  return list;
+                },
+                system)
+            .toCompletableFuture()
+            .join();
+    assertEquals(
+        Arrays.asList(
+            0, 1, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144, 233, 377, 610, 987, 1597, 2584, 4181,
+            6765, 10946, 17711, 28657, 46368, 75025, 121393, 196418, 317811, 514229, 832040,
+            1346269, 2178309, 3524578, 5702887, 9227465),
+        resultList);
+  }
+
+  @Test
+  public void flattenOptional() throws Exception {
+    // #flattenOptional
+    final CompletionStage<List<Integer>> resultList =
+        Source.range(1, 10)
+            .map(x -> Optional.of(x).filter(n -> n % 2 == 0))
+            .via(Flow.flattenOptional())
+            .runWith(Sink.seq(), system);
+    // #flattenOptional
+    Assert.assertEquals(
+        Arrays.asList(2, 4, 6, 8, 10), resultList.toCompletableFuture().get(3, TimeUnit.SECONDS));
+  }
+
+  @Test
+  public void flattenOptionalOptional() throws Exception {
+    final List<Integer> resultList =
+        Source.range(1, 10)
+            .map(x -> Optional.of(x).filter(n -> n % 2 == 0))
+            .map(Optional::ofNullable)
+            .via(Flow.flattenOptional())
+            .via(Flow.flattenOptional())
+            .runWith(Sink.seq(), system)
+            .toCompletableFuture()
+            .get(3, TimeUnit.SECONDS);
+    Assert.assertEquals(Arrays.asList(2, 4, 6, 8, 10), resultList);
   }
 }

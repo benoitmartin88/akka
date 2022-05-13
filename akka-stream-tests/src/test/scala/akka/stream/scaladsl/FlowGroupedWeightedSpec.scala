@@ -1,16 +1,16 @@
 /*
- * Copyright (C) 2020-2021 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2020-2022 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.stream.scaladsl
 
-import akka.stream.testkit.{ ScriptedTest, StreamSpec, TestPublisher, TestSubscriber }
-import akka.testkit.TimingTest
-import akka.util.unused
-
 import scala.collection.immutable
 import scala.concurrent.Await
 import scala.concurrent.duration._
+
+import akka.stream.testkit.{ ScriptedTest, StreamSpec, TestPublisher, TestSubscriber }
+import akka.testkit.TimingTest
+import akka.util.unused
 
 class FlowGroupedWeightedSpec extends StreamSpec("""
     akka.stream.materializer.initial-input-buffer-size = 2

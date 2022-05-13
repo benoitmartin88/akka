@@ -1,17 +1,18 @@
 /*
- * Copyright (C) 2020-2021 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2020-2022 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.stream.scaladsl
 
-import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.{ CountDownLatch, ThreadLocalRandom }
-import akka.stream.QueueOfferResult
-import akka.stream.testkit.scaladsl.TestSink
-import akka.stream.testkit.{ StreamSpec, TestSubscriber }
-import akka.testkit.WithLogCapturing
+import java.util.concurrent.atomic.AtomicLong
 
 import scala.concurrent.duration._
+
+import akka.stream.QueueOfferResult
+import akka.stream.testkit.{ StreamSpec, TestSubscriber }
+import akka.stream.testkit.scaladsl.TestSink
+import akka.testkit.WithLogCapturing
 
 class BoundedSourceQueueSpec extends StreamSpec("""akka.loglevel = debug
     |akka.loggers = ["akka.testkit.SilenceAllTestEventListener"]

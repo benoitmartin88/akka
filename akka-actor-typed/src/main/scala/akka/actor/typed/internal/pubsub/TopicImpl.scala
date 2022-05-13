@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2021 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.actor.typed.internal.pubsub
@@ -7,6 +7,7 @@ package akka.actor.typed.internal.pubsub
 import scala.reflect.ClassTag
 
 import akka.actor.Dropped
+import akka.actor.InvalidMessageException
 import akka.actor.typed.ActorRef
 import akka.actor.typed.Behavior
 import akka.actor.typed.pubsub.Topic
@@ -27,13 +28,16 @@ private[akka] object TopicImpl {
   trait Command[T]
 
   // actual public messages but internal to ease bincomp evolution
-  final case class Publish[T](message: T) extends Topic.Command[T]
+  final case class Publish[T](message: T) extends Topic.Command[T] {
+    if (message == null)
+      throw InvalidMessageException("[null] is not an allowed message")
+  }
   final case class Subscribe[T](subscriber: ActorRef[T]) extends Topic.Command[T]
   final case class Unsubscribe[T](subscriber: ActorRef[T]) extends Topic.Command[T]
 
   // internal messages, note that the protobuf serializer for those sent remotely is defined in akka-cluster-typed
   final case class GetTopicStats[T](replyTo: ActorRef[TopicStats]) extends Topic.Command[T]
-  final case class TopicStats(localSubscriberCount: Int, topicInstanceCount: Int)
+  final case class TopicStats(localSubscriberCount: Int, topicInstanceCount: Int) extends Topic.TopicStats
   final case class TopicInstancesUpdated[T](topics: Set[ActorRef[TopicImpl.Command[T]]]) extends Command[T]
   final case class MessagePublished[T](message: T) extends Command[T]
   final case class SubscriberTerminated[T](subscriber: ActorRef[T]) extends Command[T]
@@ -77,8 +81,15 @@ private[akka] final class TopicImpl[T](topicName: String, context: ActorContext[
 
     case Publish(message) =>
       if (topicInstances.isEmpty) {
-        context.log.trace("Publishing message of type [{}] but no subscribers, dropping", msg.getClass)
-        context.system.deadLetters ! Dropped(message, "No topic subscribers known", context.self.toClassic)
+        if (localSubscribers.isEmpty) {
+          context.log.trace("Publishing message of type [{}] but no subscribers, dropping", msg.getClass)
+          context.system.deadLetters ! Dropped(message, "No topic subscribers known", context.self.toClassic)
+        } else {
+          context.log.trace(
+            "Publishing message of type [{}] to local subscribers only (topic listing not seen yet)",
+            msg.getClass)
+          localSubscribers.foreach(_ ! message)
+        }
       } else {
         context.log.trace("Publishing message of type [{}]", msg.getClass)
         val pub = MessagePublished(message)

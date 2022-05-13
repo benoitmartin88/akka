@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019-2021 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2019-2022 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka
@@ -35,6 +35,16 @@ object Paradox {
         "javadoc.akka.link_style" -> "direct",
         "javadoc.akka.http.base_url" -> "https://doc.akka.io/japi/akka-http/current",
         "javadoc.akka.http.link_style" -> "frames",
+        "javadoc.com.fasterxml.jackson.annotation.base_url" -> "https://javadoc.io/doc/com.fasterxml.jackson.core/jackson-annotations/latest/",
+        "javadoc.com.fasterxml.jackson.annotation.link_style" -> "direct",
+        "javadoc.com.fasterxml.jackson.databind.base_url" -> "https://javadoc.io/doc/com.fasterxml.jackson.core/jackson-databind/latest/",
+        "javadoc.com.fasterxml.jackson.databind.link_style" -> "direct",
+        "javadoc.com.google.protobuf.base_url" -> "https://javadoc.io/doc/com.google.protobuf/protobuf-java/latest/",
+        "javadoc.com.google.protobuf.link_style" -> "direct",
+        "javadoc.com.typesafe.config.base_url" -> "https://javadoc.io/doc/com.typesafe/config/latest/",
+        "javadoc.com.typesafe.config.link_style" -> "direct",
+        "javadoc.org.slf4j.base_url" -> "https://www.javadoc.io/doc/org.slf4j/slf4j-api/latest/org.slf4j",
+        "javadoc.org.slf4j.link_style" -> "direct",
         "scala.version" -> scalaVersion.value,
         "scala.binary.version" -> scalaBinaryVersion.value,
         "akka.version" -> version.value,

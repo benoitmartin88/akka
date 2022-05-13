@@ -1,15 +1,16 @@
 /*
- * Copyright (C) 2020-2021 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2020-2022 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.stream.impl.io
 
+import javax.net.ssl.{ SSLContext, SSLEngine, SSLParameters }
+
+import org.scalatest.matchers.should.Matchers
+import org.scalatest.wordspec.AnyWordSpecLike
+
 import akka.stream.TLSClientAuth
 import akka.stream.TLSProtocol.NegotiateNewSession
-import org.scalatest.matchers.should.Matchers
-
-import javax.net.ssl.{ SSLContext, SSLEngine, SSLParameters }
-import org.scalatest.wordspec.AnyWordSpecLike
 
 class TLSUtilsSpec extends AnyWordSpecLike with Matchers {
 

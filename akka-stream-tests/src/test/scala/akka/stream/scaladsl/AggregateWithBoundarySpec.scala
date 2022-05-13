@@ -1,20 +1,21 @@
 /*
- * Copyright (C) 2021 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2021-2022 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.stream.scaladsl
+
+import scala.collection.mutable.ListBuffer
+import scala.concurrent.Await
+import scala.concurrent.duration._
+
+import com.typesafe.config.{ ConfigFactory, ConfigValueFactory }
+import org.scalatest.matchers.should.Matchers
+import org.scalatest.wordspec.AnyWordSpecLike
 
 import akka.actor.ActorSystem
 import akka.stream.OverflowStrategy
 import akka.stream.testkit.{ StreamSpec, TestPublisher, TestSubscriber }
 import akka.testkit.{ AkkaSpec, ExplicitlyTriggeredScheduler }
-import com.typesafe.config.{ ConfigFactory, ConfigValueFactory }
-import org.scalatest.matchers.should.Matchers
-import org.scalatest.wordspec.AnyWordSpecLike
-
-import scala.collection.mutable.ListBuffer
-import scala.concurrent.Await
-import scala.concurrent.duration._
 
 class AggregateWithBoundarySpec extends StreamSpec {
 

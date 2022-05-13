@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2021 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.cluster.singleton
@@ -149,8 +149,8 @@ class ClusterSingletonManagerPreparingForShutdownSpec
 
     "last nodes should shut down" in {
       runOn(second) {
-        Cluster(system).leave(address(second))
         Cluster(system).leave(address(third))
+        Cluster(system).leave(address(second))
       }
       awaitAssert({
         withClue("self member: " + Cluster(system).selfMember) {

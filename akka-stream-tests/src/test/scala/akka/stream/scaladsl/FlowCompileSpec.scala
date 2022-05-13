@@ -1,13 +1,13 @@
 /*
- * Copyright (C) 2014-2021 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2014-2022 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.stream.scaladsl
 
+import scala.annotation.nowarn
 import scala.collection.immutable.Seq
 import scala.concurrent.Future
 
-import scala.annotation.nowarn
 import org.reactivestreams.Publisher
 
 import akka.NotUsed

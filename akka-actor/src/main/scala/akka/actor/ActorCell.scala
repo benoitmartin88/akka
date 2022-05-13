@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2021 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.actor
@@ -661,9 +661,22 @@ private[akka] class ActorCell(
                or is missing an appropriate, reachable no-args constructor.
               """,
               i.getCause)
-          case x => throw ActorInitializationException(self, "exception during creation", x)
+          case x =>
+            val rootCauseMessage = Option(rootCauseOf(x).getMessage).getOrElse("No message available")
+            throw ActorInitializationException(
+              self,
+              s"exception during creation, root cause message: [$rootCauseMessage]",
+              x)
         }
     }
+  }
+
+  @tailrec
+  private def rootCauseOf(throwable: Throwable): Throwable = {
+    if (throwable.getCause != null && throwable.getCause != throwable)
+      rootCauseOf(throwable.getCause)
+    else
+      throwable
   }
 
   private def supervise(child: ActorRef, async: Boolean): Unit =

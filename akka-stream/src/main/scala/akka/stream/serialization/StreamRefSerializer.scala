@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018-2021 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2018-2022 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.stream.serialization
@@ -91,7 +91,10 @@ private[akka] final class StreamRefSerializer(val system: ExtendedActorSystem)
       d: StreamRefsProtocol.RemoteStreamFailure): StreamRefMessages.RemoteStreamFailure = {
     StreamRefMessages.RemoteStreamFailure
       .newBuilder()
-      .setCause(UnsafeByteOperations.unsafeWrap(d.msg.getBytes(StandardCharsets.UTF_8)))
+      .setCause {
+        val msg = Option(d.msg).getOrElse(d.getClass.getName)
+        UnsafeByteOperations.unsafeWrap(msg.getBytes(StandardCharsets.UTF_8))
+      }
       .build()
   }
 

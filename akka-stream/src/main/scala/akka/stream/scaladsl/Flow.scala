@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014-2021 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2014-2022 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.stream.scaladsl
@@ -144,6 +144,16 @@ final class Flow[-In, +Out, +Mat](
    */
   override def mapMaterializedValue[Mat2](f: Mat => Mat2): ReprMat[Out, Mat2] =
     new Flow(traversalBuilder.transformMat(f), shape)
+
+  /**
+   * Materializes this [[Flow]], immediately returning (1) its materialized value, and (2) a newly materialized [[Flow]].
+   * The returned flow is partial materialized and do not support multiple times materialization.
+   */
+  def preMaterialize()(implicit materializer: Materializer): (Mat, ReprMat[Out, NotUsed]) = {
+    val ((sub, mat), pub) =
+      Source.asSubscriber[In].viaMat(this)(Keep.both).toMat(Sink.asPublisher(false))(Keep.both).run()
+    (mat, Flow.fromSinkAndSource(Sink.fromSubscriber(sub), Source.fromPublisher(pub)))
+  }
 
   /**
    * Join this [[Flow]] to another [[Flow]], by cross connecting the inputs and outputs, creating a [[RunnableGraph]].
@@ -774,6 +784,8 @@ final case class RunnableGraph[+Mat](override val traversalBuilder: TraversalBui
 
   /** Converts this Scala DSL element to it's Java DSL counterpart. */
   def asJava: javadsl.RunnableGraph[Mat] = javadsl.RunnableGraph.fromGraph(this)
+
+  override def getAttributes: Attributes = traversalBuilder.attributes
 }
 
 /**
@@ -2772,12 +2784,37 @@ trait FlowOps[+Out, +Mat] {
    *   '''Cancels when''' downstream cancels
    */
   def zipLatestWith[Out2, Out3](that: Graph[SourceShape[Out2], _])(combine: (Out, Out2) => Out3): Repr[Out3] =
-    via(zipLatestWithGraph(that)(combine))
+    zipLatestWith(that, eagerComplete = true)(combine)
+
+  /**
+   * Combine the elements of multiple streams into a stream of combined elements using a combiner function,
+   * picking always the latest of the elements of each source.
+   *
+   * No element is emitted until at least one element from each Source becomes available. Whenever a new
+   * element appears, the zipping function is invoked with a tuple containing the new element
+   * and the other last seen elements.
+   *
+   *   '''Emits when''' all of the inputs have at least an element available, and then each time an element becomes
+   *   available on either of the inputs
+   *
+   *   '''Backpressures when''' downstream backpressures
+   *
+   *   '''Completes when''' any upstream completes if `eagerComplete` is enabled or wait for all upstreams to complete
+   *
+   *   '''Cancels when''' downstream cancels
+   */
+  def zipLatestWith[Out2, Out3](that: Graph[SourceShape[Out2], _], eagerComplete: Boolean)(
+      combine: (Out, Out2) => Out3): Repr[Out3] =
+    via(zipLatestWithGraph(that, eagerComplete)(combine))
 
   protected def zipLatestWithGraph[Out2, Out3, M](that: Graph[SourceShape[Out2], M])(
       combine: (Out, Out2) => Out3): Graph[FlowShape[Out @uncheckedVariance, Out3], M] =
+    zipLatestWithGraph(that, eagerComplete = true)(combine)
+
+  protected def zipLatestWithGraph[Out2, Out3, M](that: Graph[SourceShape[Out2], M], eagerComplete: Boolean)(
+      combine: (Out, Out2) => Out3): Graph[FlowShape[Out @uncheckedVariance, Out3], M] =
     GraphDSL.createGraph(that) { implicit b => r =>
-      val zip = b.add(ZipLatestWith[Out, Out2, Out3](combine))
+      val zip = b.add(ZipLatestWith[Out, Out2, Out3](combine, eagerComplete))
       r ~> zip.in1
       FlowShape(zip.in0, zip.out)
     }
@@ -3184,7 +3221,7 @@ trait FlowOps[+Out, +Mat] {
   def to[Mat2](sink: Graph[SinkShape[Out], Mat2]): Closed
 
   /**
-   * Attaches the given [[Sink]] to this [[Flow]], meaning that elements that pass
+   * Attaches the given [[Sink]] to this [[Source]], meaning that elements that pass
    * through will also be sent to the [[Sink]].
    *
    * It is similar to [[#wireTap]] but will backpressure instead of dropping elements when the given [[Sink]] is not ready.
@@ -3206,6 +3243,32 @@ trait FlowOps[+Out, +Mat] {
       bcast.out(1) ~> r
       FlowShape(bcast.in, bcast.out(0))
     }
+
+  /**
+   * Attaches the given [[Sink]]s to this [[Source]], meaning that elements that pass
+   * through will also be sent to the [[Sink]].
+   *
+   * It is similar to [[#wireTap]] but will backpressure instead of dropping elements when the given [[Sink]]s is not ready.
+   *
+   * '''Emits when''' element is available and demand exists both from the Sinks and the downstream.
+   *
+   * '''Backpressures when''' downstream or any of the [[Sink]]s backpressures
+   *
+   * '''Completes when''' upstream completes
+   *
+   * '''Cancels when''' downstream or any of the [[Sink]]s cancels
+   */
+  def alsoToAll(those: Graph[SinkShape[Out], _]*): Repr[Out] = those match {
+    case those if those.isEmpty => this.asInstanceOf[Repr[Out]]
+    case _ =>
+      via(GraphDSL.create() { implicit b =>
+        import GraphDSL.Implicits._
+        val bcast = b.add(Broadcast[Out](those.size + 1, eagerCancel = true))
+        for ((that, idx) <- those.zipWithIndex)
+          bcast.out(idx + 1) ~> that
+        FlowShape(bcast.in, bcast.out(0))
+      })
+  }
 
   /**
    * Attaches the given [[Sink]] to this [[Flow]], meaning that elements will be sent to the [[Sink]]
@@ -3439,7 +3502,20 @@ trait FlowOpsMat[+Out, +Mat] extends FlowOps[Out, Mat] {
    */
   def zipLatestWithMat[Out2, Out3, Mat2, Mat3](that: Graph[SourceShape[Out2], Mat2])(combine: (Out, Out2) => Out3)(
       matF: (Mat, Mat2) => Mat3): ReprMat[Out3, Mat3] =
-    viaMat(zipLatestWithGraph(that)(combine))(matF)
+    zipLatestWithMat(that, eagerComplete = true)(combine)(matF)
+
+  /**
+   * Put together the elements of current flow and the given [[Source]]
+   * into a stream of combined elements using a combiner function, picking always the latest of the elements of each source.
+   *
+   * @see [[#zipLatestWith]].
+   *
+   * It is recommended to use the internally optimized `Keep.left` and `Keep.right` combiners
+   * where appropriate instead of manually writing functions that pass through one of the values.
+   */
+  def zipLatestWithMat[Out2, Out3, Mat2, Mat3](that: Graph[SourceShape[Out2], Mat2], eagerComplete: Boolean)(
+      combine: (Out, Out2) => Out3)(matF: (Mat, Mat2) => Mat3): ReprMat[Out3, Mat3] =
+    viaMat(zipLatestWithGraph(that, eagerComplete)(combine))(matF)
 
   /**
    * Merge the given [[Source]] to this [[Flow]], taking elements as they arrive from input streams,

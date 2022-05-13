@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014-2021 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2014-2022 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.stream.scaladsl
@@ -11,7 +11,6 @@ import scala.concurrent.duration._
 
 import akka.stream.ThrottleMode
 import akka.stream.testkit._
-import akka.stream.testkit.scaladsl.StreamTestKit._
 import akka.testkit.TimingTest
 import akka.util.ConstantFun
 
@@ -19,7 +18,7 @@ class FlowGroupedWithinSpec extends StreamSpec with ScriptedTest {
 
   "A GroupedWithin" must {
 
-    "group elements within the duration" taggedAs TimingTest in assertAllStagesStopped {
+    "group elements within the duration" taggedAs TimingTest in {
       val input = Iterator.from(1)
       val p = TestPublisher.manualProbe[Int]()
       val c = TestSubscriber.manualProbe[immutable.Seq[Int]]()

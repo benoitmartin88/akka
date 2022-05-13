@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014-2021 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2014-2022 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.stream.javadsl
@@ -9,12 +9,11 @@ import java.util.Optional
 import java.util.concurrent.CompletionStage
 import java.util.function.BiFunction
 import java.util.function.Supplier
-
 import scala.annotation.unchecked.uncheckedVariance
 import scala.compat.java8.FutureConverters._
 import scala.concurrent.duration.FiniteDuration
 import scala.reflect.ClassTag
-import scala.annotation.nowarn
+import scala.annotation.{ nowarn, varargs }
 import org.reactivestreams.Processor
 import akka.Done
 import akka.NotUsed
@@ -27,7 +26,7 @@ import akka.japi.Pair
 import akka.japi.Util
 import akka.japi.function
 import akka.japi.function.Creator
-import akka.stream._
+import akka.stream.{ javadsl, _ }
 import akka.util.ConstantFun
 import akka.util.JavaDurationConverters._
 import akka.util.Timeout
@@ -371,6 +370,23 @@ object Flow {
   def upcast[In, SuperOut, Out <: SuperOut, M](flow: Flow[In, Out, M]): Flow[In, SuperOut, M] =
     flow.asInstanceOf[Flow[In, SuperOut, M]]
 
+  /**
+   * Collect the value of [[Optional]] from the elements passing through this flow, empty [[Optional]] is filtered out.
+   *
+   * Adheres to the [[ActorAttributes.SupervisionStrategy]] attribute.
+   *
+   * '''Emits when''' the current [[Optional]]'s value is present.
+   *
+   * '''Backpressures when''' the value of the current [[Optional]] is present and downstream backpressures
+   *
+   * '''Completes when''' upstream completes
+   *
+   * '''Cancels when''' downstream cancels
+   * * */
+  def flattenOptional[Out, In <: Optional[Out]](): Flow[In, Out, NotUsed] =
+    new Flow(scaladsl.Flow[In].collect {
+      case optional: Optional[Out @unchecked] if optional.isPresent => optional.get()
+    })
 }
 
 /**
@@ -392,6 +408,23 @@ final class Flow[In, Out, Mat](delegate: scaladsl.Flow[In, Out, Mat]) extends Gr
    */
   def mapMaterializedValue[Mat2](f: function.Function[Mat, Mat2]): Flow[In, Out, Mat2] =
     new Flow(delegate.mapMaterializedValue(f.apply _))
+
+  /**
+   * Materializes this [[Flow]], immediately returning (1) its materialized value, and (2) a newly materialized [[Flow]].
+   */
+  def preMaterialize(
+      systemProvider: ClassicActorSystemProvider): akka.japi.Pair[Mat @uncheckedVariance, Flow[In, Out, NotUsed]] = {
+    preMaterialize(SystemMaterializer(systemProvider.classicSystem).materializer)
+  }
+
+  /**
+   * Materializes this [[Flow]], immediately returning (1) its materialized value, and (2) a newly materialized [[Flow]].
+   * The returned flow is partial materialized and do not support multiple times materialization.
+   */
+  def preMaterialize(materializer: Materializer): akka.japi.Pair[Mat @uncheckedVariance, Flow[In, Out, NotUsed]] = {
+    val (mat, flow) = delegate.preMaterialize()(materializer)
+    akka.japi.Pair(mat, flow.asJava)
+  }
 
   /**
    * Transform this [[Flow]] by appending the given processing steps.
@@ -2590,6 +2623,25 @@ final class Flow[In, Out, Mat](delegate: scaladsl.Flow[In, Out, Mat]) extends Gr
     new Flow(delegate.alsoTo(that))
 
   /**
+   * Attaches the given [[Sink]]s to this [[Flow]], meaning that elements that passes
+   * through will also be sent to all those [[Sink]]s.
+   *
+   * It is similar to [[#wireTap]] but will backpressure instead of dropping elements when the given [[Sink]]s is not ready.
+   *
+   * '''Emits when''' element is available and demand exists both from the Sinks and the downstream.
+   *
+   * '''Backpressures when''' downstream or any of the [[Sink]]s backpressures
+   *
+   * '''Completes when''' upstream completes
+   *
+   * '''Cancels when''' downstream or any of the [[Sink]]s cancels
+   */
+  @varargs
+  @SafeVarargs
+  def alsoToAll(those: Graph[SinkShape[Out], _]*): javadsl.Flow[In, Out, Mat] =
+    new Flow(delegate.alsoToAll(those: _*))
+
+  /**
    * Attaches the given [[Sink]] to this [[Flow]], meaning that elements that passes
    * through will also be sent to the [[Sink]].
    *
@@ -3109,6 +3161,47 @@ final class Flow[In, Out, Mat](delegate: scaladsl.Flow[In, Out, Mat]) extends Gr
       that: Graph[SourceShape[Out2], _],
       combine: function.Function2[Out, Out2, Out3]): javadsl.Flow[In, Out3, Mat] =
     new Flow(delegate.zipLatestWith[Out2, Out3](that)(combinerToScala(combine)))
+
+  /**
+   * Combine the elements of multiple streams into a stream of combined elements using a combiner function,
+   * picking always the latest of the elements of each source.
+   *
+   * No element is emitted until at least one element from each Source becomes available. Whenever a new
+   * element appears, the zipping function is invoked with a tuple containing the new element
+   * and the other last seen elements.
+   *
+   *   '''Emits when''' all of the inputs have at least an element available, and then each time an element becomes
+   *   available on either of the inputs
+   *
+   *   '''Backpressures when''' downstream backpressures
+   *
+   *   '''Completes when''' any upstream completes if `eagerComplete` is enabled or wait for all upstreams to complete
+   *
+   *   '''Cancels when''' downstream cancels
+   */
+  def zipLatestWith[Out2, Out3](
+      that: Graph[SourceShape[Out2], _],
+      eagerComplete: Boolean,
+      combine: function.Function2[Out, Out2, Out3]): javadsl.Flow[In, Out3, Mat] =
+    new Flow(delegate.zipLatestWith[Out2, Out3](that, eagerComplete)(combinerToScala(combine)))
+
+  /**
+   * Put together the elements of current [[Flow]] and the given [[Source]]
+   * into a stream of combined elements using a combiner function, picking always the latest element of each.
+   *
+   * It is recommended to use the internally optimized `Keep.left` and `Keep.right` combiners
+   * where appropriate instead of manually writing functions that pass through one of the values.
+   *
+   * @see [[#zipLatestWith]]
+   */
+  def zipLatestWithMat[Out2, Out3, M, M2](
+      that: Graph[SourceShape[Out2], M],
+      eagerComplete: Boolean,
+      combine: function.Function2[Out, Out2, Out3],
+      matF: function.Function2[Mat, M, M2]): javadsl.Flow[In, Out3, M2] =
+    new Flow(
+      delegate.zipLatestWithMat[Out2, Out3, M, M2](that, eagerComplete)(combinerToScala(combine))(
+        combinerToScala(matF)))
 
   /**
    * Put together the elements of current [[Flow]] and the given [[Source]]
@@ -4008,6 +4101,9 @@ final class Flow[In, Out, Mat](delegate: scaladsl.Flow[In, Out, Mat]) extends Gr
           case Pair(predicate, duration) => (agg => predicate.test(agg), duration.asScala)
         })
       .asJava
+
+  override def getAttributes: Attributes = delegate.getAttributes
+
 }
 
 object RunnableGraph {

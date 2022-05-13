@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2021 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2015-2022 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.persistence.journal
@@ -57,7 +57,7 @@ class InmemEventAdaptersSpec extends AkkaSpec {
     "pick the most specific adapter available" in {
       val adapters = EventAdapters(extendedActorSystem, inmemConfig)
 
-      // sanity check; precise case, matching non-user classes
+      // precise case, matching non-user classes
       adapters.get(classOf[java.lang.String]).getClass should ===(classOf[ExampleEventAdapter])
 
       // pick adapter by implemented marker interface

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2021 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.routing
@@ -15,6 +15,7 @@ import akka.actor.ActorPath
 import akka.actor.ActorSystem
 import akka.actor.Address
 import akka.actor.ExtendedActorSystem
+import akka.actor.InvalidMessageException
 import akka.actor.SupervisorStrategy
 import akka.actor.WrappedMessage
 import akka.dispatch.Dispatchers
@@ -57,6 +58,9 @@ object ConsistentHashingRouter {
       extends ConsistentHashable
       with RouterEnvelope
       with WrappedMessage {
+    if (message == null)
+      throw InvalidMessageException("[null] is not an allowed message")
+
     override def consistentHashKey: Any = hashKey
   }
 

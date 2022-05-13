@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2021 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package docs.actor.typed
@@ -77,9 +77,9 @@ class SharedMutableStateDocSpec {
 
         // use context.ask instead, turns the completion
         // into a message sent to self
-        context.ask(otherActor, Query(_)) {
-          case Success(result: String) => UpdateState(result)
-          case Failure(ex)             => throw ex
+        context.ask[Query, String](otherActor, Query(_)) {
+          case Success(result) => UpdateState(result)
+          case Failure(ex)     => throw ex
         }
         this
 

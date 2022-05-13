@@ -1,11 +1,10 @@
 /*
- * Copyright (C) 2018-2021 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2018-2022 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.stream.scaladsl
 
 import akka.stream.testkit._
-import akka.stream.testkit.scaladsl.StreamTestKit._
 import akka.stream.testkit.scaladsl.TestSink
 
 class GraphWireTapSpec extends StreamSpec("""
@@ -14,7 +13,7 @@ class GraphWireTapSpec extends StreamSpec("""
 
   "A wire tap" must {
 
-    "wireTap must broadcast to the tap" in assertAllStagesStopped {
+    "wireTap must broadcast to the tap" in {
       val tp, mp = TestSink.probe[Int](system)
       val (tps, mps) = Source(1 to 2).wireTapMat(tp)(Keep.right).toMat(mp)(Keep.both).run()
       tps.request(2)
@@ -25,7 +24,7 @@ class GraphWireTapSpec extends StreamSpec("""
       tps.expectComplete()
     }
 
-    "wireTap must drop elements while the tap has no demand, buffering up to one element" in assertAllStagesStopped {
+    "wireTap must drop elements while the tap has no demand, buffering up to one element" in {
       val tp, mp = TestSink.probe[Int](system)
       val (tps, mps) = Source(1 to 6).wireTapMat(tp)(Keep.right).toMat(mp)(Keep.both).run()
       mps.request(3)
@@ -39,7 +38,7 @@ class GraphWireTapSpec extends StreamSpec("""
       tps.expectComplete()
     }
 
-    "wireTap must cancel if main sink cancels" in assertAllStagesStopped {
+    "wireTap must cancel if main sink cancels" in {
       val tp, mp = TestSink.probe[Int](system)
       val (tps, mps) = Source(1 to 6).wireTapMat(tp)(Keep.right).toMat(mp)(Keep.both).run()
       tps.request(6)
@@ -47,7 +46,7 @@ class GraphWireTapSpec extends StreamSpec("""
       tps.expectComplete()
     }
 
-    "wireTap must continue if tap sink cancels" in assertAllStagesStopped {
+    "wireTap must continue if tap sink cancels" in {
       val tp, mp = TestSink.probe[Int](system)
       val (tps, mps) = Source(1 to 6).wireTapMat(tp)(Keep.right).toMat(mp)(Keep.both).run()
       tps.cancel()

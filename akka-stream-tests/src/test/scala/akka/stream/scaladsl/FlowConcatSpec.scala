@@ -1,8 +1,17 @@
 /*
- * Copyright (C) 2015-2021 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2015-2022 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.stream.scaladsl
+
+import java.util.concurrent.atomic.AtomicBoolean
+
+import scala.concurrent.Await
+import scala.concurrent.Promise
+import scala.concurrent.duration._
+
+import org.reactivestreams.Publisher
+import org.scalatest.concurrent.ScalaFutures
 
 import akka.NotUsed
 import akka.stream.testkit.BaseTwoStreamsSetup
@@ -10,13 +19,6 @@ import akka.stream.testkit.TestPublisher
 import akka.stream.testkit.TestSubscriber
 import akka.stream.testkit.scaladsl.StreamTestKit._
 import akka.stream.testkit.scaladsl.TestSink
-import org.reactivestreams.Publisher
-import org.scalatest.concurrent.ScalaFutures
-
-import java.util.concurrent.atomic.AtomicBoolean
-import scala.concurrent.Await
-import scala.concurrent.Promise
-import scala.concurrent.duration._
 
 abstract class AbstractFlowConcatSpec extends BaseTwoStreamsSetup {
 

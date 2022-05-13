@@ -1,8 +1,12 @@
 /*
- * Copyright (C) 2015-2021 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2015-2022 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.stream
+
+import scala.concurrent.{ duration, Await, Promise }
+
+import duration._
 
 import akka.Done
 import akka.stream.impl.UnfoldResourceSource
@@ -11,9 +15,6 @@ import akka.stream.scaladsl._
 import akka.stream.stage.GraphStage
 import akka.stream.testkit.StreamSpec
 import akka.stream.testkit.Utils.TE
-
-import scala.concurrent.{ duration, Await, Promise }
-import duration._
 
 class FusingSpec extends StreamSpec {
 

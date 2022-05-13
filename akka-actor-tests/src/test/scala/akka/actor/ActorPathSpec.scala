@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2021 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2009-2022 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package akka.actor
@@ -86,7 +86,7 @@ class ActorPathSpec extends AnyWordSpec with Matchers {
         RootActorPath(Address("akka", "mysys"), "/user/boom/*") // illegally pass in a path where name is expected
       }.getMessage should include("is a path separator")
 
-      // sanity check that creating such path still works
+      // check that creating such path still works
       ActorPath.fromString("akka://mysys/user/boom/*")
     }
 
