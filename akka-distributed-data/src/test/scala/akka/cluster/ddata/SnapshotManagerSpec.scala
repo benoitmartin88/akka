@@ -28,6 +28,7 @@ class SnapshotManagerSpec extends AnyWordSpec with Matchers {
     val c2 = GCounter() :+ 2
     val c3 = GCounter() :+ 3
     val c4 = GCounter() :+ 4
+    val c5 = GCounter() :+ 5
 
     val vv0 = ManyVersionVector(TreeMap(node1 -> 0))
     val vv1 = ManyVersionVector(TreeMap(node1 -> 1))
@@ -35,6 +36,7 @@ class SnapshotManagerSpec extends AnyWordSpec with Matchers {
     val vv11 = ManyVersionVector(TreeMap(node1 -> 1, node2 -> 1))
     val vv21 = ManyVersionVector(TreeMap(node1 -> 2, node2 -> 1))
     val vv22 = ManyVersionVector(TreeMap(node1 -> 2, node2 -> 2))
+    val vv23 = ManyVersionVector(TreeMap(node1 -> 2, node2 -> 3))
 
     val snapshotManager = SnapshotManager(node1)
 
@@ -323,6 +325,84 @@ class SnapshotManagerSpec extends AnyWordSpec with Matchers {
       snapshotManager.globalStableSnapshot._2.size should be(2)
       snapshotManager.globalStableSnapshot._2(key1).data should be(c4)
       snapshotManager.globalStableSnapshot._2(key2).data should be(c2)
+
+      // node 2 updates key2 with c3
+      snapshotManager.updateFromGossip(vv23, Map(key2 -> DataEnvelope(c3)))
+      // check currentTransactions
+      snapshotManager.currentTransactions.size should be(0)
+      // check committedTransactions
+      snapshotManager.localSnapshots.size should be(1)
+      snapshotManager.localSnapshots(vv23).size should be(1)
+      snapshotManager.localSnapshots(vv23)(key2).data should be(c3)
+      // check knownVersionVectors
+      snapshotManager.getKnownVectorClocks should be(Map(node1 -> vv22, node2 -> vv22))  // only update knownVectorClocks on gossip without data
+      // check globalStableSnapshot
+      snapshotManager.globalStableSnapshot._1.compareTo(vv22) should be(VersionVector.Same)
+      snapshotManager.globalStableSnapshot._2.size should be(2)
+      snapshotManager.globalStableSnapshot._2(key1).data should be(c4)
+      snapshotManager.globalStableSnapshot._2(key2).data should be(c2)
+
+      snapshotManager.updateFromGossip(vv23, Map(key2 -> DataEnvelope(c4)))
+      // check currentTransactions
+      snapshotManager.currentTransactions.size should be(0)
+      // check committedTransactions
+      snapshotManager.localSnapshots.size should be(1)
+      snapshotManager.localSnapshots(vv23).size should be(1)
+      snapshotManager.localSnapshots(vv23)(key2).data should be(c4)
+      // check knownVersionVectors
+      snapshotManager.getKnownVectorClocks should be(Map(node1 -> vv22, node2 -> vv22))  // only update knownVectorClocks on gossip without data
+      // check globalStableSnapshot
+      snapshotManager.globalStableSnapshot._1.compareTo(vv22) should be(VersionVector.Same)
+      snapshotManager.globalStableSnapshot._2.size should be(2)
+      snapshotManager.globalStableSnapshot._2(key1).data should be(c4)
+      snapshotManager.globalStableSnapshot._2(key2).data should be(c2)
+
+      snapshotManager.updateFromGossip(vv23, Map(key1 -> DataEnvelope(c5)))
+      // check currentTransactions
+      snapshotManager.currentTransactions.size should be(0)
+      // check committedTransactions
+      snapshotManager.localSnapshots.size should be(1)
+      snapshotManager.localSnapshots(vv23).size should be(2)
+      snapshotManager.localSnapshots(vv23)(key1).data should be(c5)
+      snapshotManager.localSnapshots(vv23)(key2).data should be(c4)
+      // check knownVersionVectors
+      snapshotManager.getKnownVectorClocks should be(Map(node1 -> vv22, node2 -> vv22))  // only update knownVectorClocks on gossip without data
+      // check globalStableSnapshot
+      snapshotManager.globalStableSnapshot._1.compareTo(vv22) should be(VersionVector.Same)
+      snapshotManager.globalStableSnapshot._2.size should be(2)
+      snapshotManager.globalStableSnapshot._2(key1).data should be(c4)
+      snapshotManager.globalStableSnapshot._2(key2).data should be(c2)
+
+      // updateKnownVersionVectors node2 to vv23
+      snapshotManager.updateKnownVersionVectors(node2, vv23)
+      // check currentTransactions
+      snapshotManager.currentTransactions.size should be(0)
+      // check committedTransactions
+      snapshotManager.localSnapshots.size should be(1)
+      snapshotManager.localSnapshots(vv23).size should be(2)
+      snapshotManager.localSnapshots(vv23)(key1).data should be(c5)
+      snapshotManager.localSnapshots(vv23)(key2).data should be(c4)
+      // check knownVersionVectors
+      snapshotManager.getKnownVectorClocks should be(Map(node1 -> vv22, node2 -> vv23))  // only update knownVectorClocks on gossip without data
+      // check globalStableSnapshot
+      snapshotManager.globalStableSnapshot._1.compareTo(vv22) should be(VersionVector.Same)
+      snapshotManager.globalStableSnapshot._2.size should be(2)
+      snapshotManager.globalStableSnapshot._2(key1).data should be(c4)
+      snapshotManager.globalStableSnapshot._2(key2).data should be(c2)
+
+      // updateKnownVersionVectors node1 to vv23
+      snapshotManager.updateKnownVersionVectors(node1, vv23)
+      // check currentTransactions
+      snapshotManager.currentTransactions.size should be(0)
+      // check committedTransactions
+      snapshotManager.localSnapshots.size should be(0)
+      // check knownVersionVectors
+      snapshotManager.getKnownVectorClocks should be(Map(node1 -> vv23, node2 -> vv23))  // only update knownVectorClocks on gossip without data
+      // check globalStableSnapshot
+      snapshotManager.globalStableSnapshot._1.compareTo(vv23) should be(VersionVector.Same)
+      snapshotManager.globalStableSnapshot._2.size should be(2)
+      snapshotManager.globalStableSnapshot._2(key1).data should be(c5)
+      snapshotManager.globalStableSnapshot._2(key2).data should be(c4)
     }
   }
 

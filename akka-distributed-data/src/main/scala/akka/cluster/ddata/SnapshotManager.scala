@@ -7,8 +7,8 @@ package akka.cluster.ddata
 import akka.cluster.UniqueAddress
 import akka.cluster.ddata.Key.KeyId
 import akka.cluster.ddata.Replicator.Internal.DataEnvelope
-import akka.cluster.ddata.SnapshotManager.{ DataEntries, Snapshot }
-import org.slf4j.{ Logger, LoggerFactory }
+import akka.cluster.ddata.SnapshotManager.{DataEntries, Snapshot}
+import org.slf4j.{Logger, LoggerFactory}
 
 import scala.collection.mutable
 
@@ -26,7 +26,6 @@ object SnapshotManager {
       selfUniqueAddress,
       mutable.Map.empty,
       (VersionVector(selfUniqueAddress, 0), Map.empty),
-//      (VersionVector.empty, Map.empty),
       mutable.TreeMap.empty[VersionVector, DataEntries](VersionVectorOrdering),
       mutable.HashMap.empty[Transaction.TransactionId, (Snapshot, Boolean)])
   }
@@ -36,7 +35,6 @@ private[akka] class SnapshotManager(
     val selfUniqueAddress: UniqueAddress,
     private val knownVersionVectors: mutable.Map[UniqueAddress, VersionVector],
     var globalStableSnapshot: Snapshot,
-    //    var lastestLocalSnapshot: Snapshot,
     var localSnapshots: mutable.TreeMap[VersionVector, DataEntries],
     // Boolean used to check if read only transaction: increment or not vv
     val currentTransactions: mutable.HashMap[Transaction.TransactionId, (Snapshot, Boolean)]) {
@@ -122,7 +120,7 @@ private[akka] class SnapshotManager(
 
     // materialize before current snapshot
     val newGssData = mutable.Map.empty[KeyId, DataEnvelope]
-    newGssData ++= globalStableSnapshot._2  // apply old GSS values
+    newGssData ++= globalStableSnapshot._2 // apply old GSS values
 
     // apply localSnapshots
     localSnapshots
@@ -195,7 +193,6 @@ private[akka] class SnapshotManager(
         }
       case None => None
     }
-
   }
 
   def update(tid: Transaction.TransactionId, updatedData: Map[KeyId, DataEnvelope]): Unit = {
@@ -215,46 +212,20 @@ private[akka] class SnapshotManager(
 
   def updateFromGossip(version: VersionVector, updatedData: Map[KeyId, DataEnvelope]): Unit = {
     log.debug("SnapshotManager::updateFromGossip(version=[{}], updatedData=[{}])", version, updatedData)
-//    updatedData.foreach(p => updateFromGossip(version, p._1, p._2))
 
-    def last: Snapshot = localSnapshots.lastOption match {
-      case Some(l) => l
-      case None    => globalStableSnapshot
+    localSnapshots.get(version) match {
+      case Some(localSnapshot) =>
+        // a version exists, merge existing values
+
+        updatedData.foreach(kv => {
+          localSnapshot.get(kv._1) match {
+            case Some(p) => localSnapshots.update(version, localSnapshot.updated(kv._1, p.merge(kv._2)))
+            case None    => localSnapshots.update(version, localSnapshot.updated(kv._1, kv._2))
+          }
+        })
+
+      case None => localSnapshots.update(version, updatedData)
     }
-
-    val commitVv = last._1.merge(version)
-//    assert(commitVv.compareTo(last._1) == VersionVector.After)  // same or after
-
-    // materialize before current snapshot
-    val newData = mutable.Map.empty[KeyId, DataEnvelope]
-
-    localSnapshots.foreach(p => {
-      def localSnapshotData = p._2
-
-      updatedData.keys.foreach(updatedDataKey => {
-        localSnapshotData.get(updatedDataKey) match {
-          // localSnapshot has a value for key
-          case Some(localSnapshotValue) =>
-            newData.get(updatedDataKey) match {
-              case Some(newDataValue) => newData.update(updatedDataKey, newDataValue.merge(localSnapshotValue))
-              case None               => newData.update(updatedDataKey, localSnapshotValue)
-            }
-
-          case None =>
-        }
-      })
-    })
-
-//    assert(newData.keySet == updatedData.keySet)
-    // apply currentTransactionSnapshot
-    updatedData.foreach(kv => {
-      newData.get(kv._1) match {
-        case Some(d) => newData.update(kv._1, d.merge(kv._2))
-        case None    => newData.update(kv._1, kv._2)
-      }
-    })
-
-    if (newData.nonEmpty) localSnapshots.update(commitVv, newData.toMap)
   }
 
   def commit(tid: Transaction.TransactionId): VersionVector = {
@@ -276,42 +247,7 @@ private[akka] class SnapshotManager(
 
 //        assert(commitVv.compareTo(last._1) == (VersionVector.After | VersionVector.Same))
 
-        // materialize before current snapshot
-        val newData = mutable.Map.empty[KeyId, DataEnvelope]
-
-        // apply globalStableSnapshot
-        newData ++= globalStableSnapshot._2.filter(x => currentTransactionSnapshot._2.keySet.contains(x._1))
-
-        // apply localSnapshots
-        localSnapshots.foreach(p => {
-          def localSnapshotData = p._2
-
-          currentTransactionSnapshot._2.keys.foreach(currentTransactionSnapshotKey => {
-            localSnapshotData.get(currentTransactionSnapshotKey) match {
-              // localSnapshot has a value for key
-              case Some(localSnapshotValue) =>
-                newData.get(currentTransactionSnapshotKey) match {
-                  case Some(newDataValue) =>
-                    newData.update(currentTransactionSnapshotKey, newDataValue.merge(localSnapshotValue))
-                  case None => newData.update(currentTransactionSnapshotKey, localSnapshotValue)
-                }
-
-              case None =>
-            }
-          })
-        })
-
-//        assert(newData.keySet == currentTransactionSnapshot._2.keySet)
-        // apply currentTransactionSnapshot
-        currentTransactionSnapshot._2.foreach(kv => {
-          newData.get(kv._1) match {
-            case Some(d) => newData.update(kv._1, d.merge(kv._2))
-            case None    => newData.update(kv._1, kv._2)
-          }
-        })
-
-        // update localSnapshots
-        if (newData.nonEmpty) localSnapshots.update(commitVv, newData.toMap)
+        if (currentTransactionSnapshot._2.nonEmpty) localSnapshots.update(commitVv, currentTransactionSnapshot._2)
         commitVv
       case None => VersionVector.empty // transaction not found
     }
