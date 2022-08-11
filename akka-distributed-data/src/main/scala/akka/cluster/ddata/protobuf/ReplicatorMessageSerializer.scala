@@ -4,35 +4,28 @@
 
 package akka.cluster.ddata.protobuf
 
+import akka.actor.{Address, CausalMessageWrapper, ExtendedActorSystem, Metadata}
+import akka.annotation.InternalApi
+import akka.cluster.ddata.DurableStore.DurableDataEnvelope
+import akka.cluster.ddata.Key.KeyR
+import akka.cluster.ddata.PruningState.PruningPerformed
+import akka.cluster.ddata.Replicator.Internal._
+import akka.cluster.ddata.Replicator._
+import akka.cluster.ddata.protobuf.msg.{ReplicatorMessages => dm}
+import akka.cluster.ddata.{PruningState, ReplicatedData, VersionVector}
+import akka.cluster.{Member, UniqueAddress}
+import akka.remote.ByteStringUtils
+import akka.serialization.{BaseSerializer, Serialization, SerializerWithStringManifest}
+import akka.util.ccompat.JavaConverters._
+import akka.util.ccompat._
+import akka.util.{ByteString => AkkaByteString}
+
 import java.io.NotSerializableException
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 import scala.annotation.tailrec
 import scala.collection.immutable
-import scala.concurrent.duration._
-import scala.concurrent.duration.Duration
-import scala.concurrent.duration.FiniteDuration
-import akka.actor.Address
-import akka.actor.ExtendedActorSystem
-import akka.annotation.InternalApi
-import akka.cluster.Member
-import akka.cluster.UniqueAddress
-import akka.cluster.ddata.DurableStore.DurableDataEnvelope
-import akka.cluster.ddata.Key.KeyR
-import akka.cluster.ddata.PruningState
-import akka.cluster.ddata.PruningState.PruningPerformed
-import akka.cluster.ddata.ReplicatedData
-import akka.cluster.ddata.Replicator._
-import akka.cluster.ddata.Replicator.Internal._
-import akka.cluster.ddata.VersionVector
-import akka.cluster.ddata.protobuf.msg.{ ReplicatorMessages => dm }
-import akka.remote.ByteStringUtils
-import akka.serialization.BaseSerializer
-import akka.serialization.Serialization
-import akka.serialization.SerializerWithStringManifest
-import akka.util.{ ByteString => AkkaByteString }
-import akka.util.ccompat._
-import akka.util.ccompat.JavaConverters._
+import scala.concurrent.duration.{Duration, FiniteDuration, _}
 
 /**
  * INTERNAL API
@@ -186,6 +179,7 @@ class ReplicatorMessageSerializer(val system: ExtendedActorSystem)
   val DeltaPropagationManifest = "Q"
   val DeltaNackManifest = "R"
   val SnapshotGossipManifest = "S"
+  val CausalMessageWrapperManifest = "T"
 
   private val fromBinaryMap = collection.immutable.HashMap[String, Array[Byte] => AnyRef](
     GetManifest -> getFromBinary,
@@ -203,55 +197,58 @@ class ReplicatorMessageSerializer(val system: ExtendedActorSystem)
     StatusManifest -> statusFromBinary,
     GossipManifest -> gossipFromBinary,
     SnapshotGossipManifest -> snapshotGossipFromBinary,
+    CausalMessageWrapperManifest -> causalMessageWrapperFromBinary,
     DeltaPropagationManifest -> deltaPropagationFromBinary,
     WriteNackManifest -> (_ => WriteNack),
     DeltaNackManifest -> (_ => DeltaNack),
     DurableDataEnvelopeManifest -> durableDataEnvelopeFromBinary)
 
   override def manifest(obj: AnyRef): String = obj match {
-    case _: DataEnvelope        => DataEnvelopeManifest
-    case _: Write               => WriteManifest
-    case WriteAck               => WriteAckManifest
-    case _: Read                => ReadManifest
-    case _: ReadResult          => ReadResultManifest
-    case _: DeltaPropagation    => DeltaPropagationManifest
-    case _: Status              => StatusManifest
-    case _: Get[_]              => GetManifest
-    case _: GetSuccess[_]       => GetSuccessManifest
-    case _: DurableDataEnvelope => DurableDataEnvelopeManifest
-    case _: Changed[_]          => ChangedManifest
-    case _: NotFound[_]         => NotFoundManifest
-    case _: GetFailure[_]       => GetFailureManifest
-    case _: Subscribe[_]        => SubscribeManifest
-    case _: Unsubscribe[_]      => UnsubscribeManifest
-    case _: Gossip              => GossipManifest
-    case _: SnapshotGossip      => SnapshotGossipManifest
-    case WriteNack              => WriteNackManifest
-    case DeltaNack              => DeltaNackManifest
+    case _: DataEnvelope         => DataEnvelopeManifest
+    case _: Write                => WriteManifest
+    case WriteAck                => WriteAckManifest
+    case _: Read                 => ReadManifest
+    case _: ReadResult           => ReadResultManifest
+    case _: DeltaPropagation     => DeltaPropagationManifest
+    case _: Status               => StatusManifest
+    case _: Get[_]               => GetManifest
+    case _: GetSuccess[_]        => GetSuccessManifest
+    case _: DurableDataEnvelope  => DurableDataEnvelopeManifest
+    case _: Changed[_]           => ChangedManifest
+    case _: NotFound[_]          => NotFoundManifest
+    case _: GetFailure[_]        => GetFailureManifest
+    case _: Subscribe[_]         => SubscribeManifest
+    case _: Unsubscribe[_]       => UnsubscribeManifest
+    case _: Gossip               => GossipManifest
+    case _: SnapshotGossip       => SnapshotGossipManifest
+    case _: CausalMessageWrapper => CausalMessageWrapperManifest
+    case WriteNack               => WriteNackManifest
+    case DeltaNack               => DeltaNackManifest
     case _ =>
       throw new IllegalArgumentException(s"Can't serialize object of type ${obj.getClass} in [${getClass.getName}]")
   }
 
   def toBinary(obj: AnyRef): Array[Byte] = obj match {
-    case m: DataEnvelope        => dataEnvelopeToProto(m).toByteArray
-    case m: Write               => writeCache.getOrAdd(m)
-    case WriteAck               => writeAckBytes
-    case m: Read                => readCache.getOrAdd(m)
-    case m: ReadResult          => readResultToProto(m).toByteArray
-    case m: Status              => statusToProto(m).toByteArray
-    case m: DeltaPropagation    => deltaPropagationToProto(m).toByteArray
-    case m: Get[_]              => getToProto(m).toByteArray
-    case m: GetSuccess[_]       => getSuccessToProto(m).toByteArray
-    case m: DurableDataEnvelope => durableDataEnvelopeToProto(m).toByteArray
-    case m: Changed[_]          => changedToProto(m).toByteArray
-    case m: NotFound[_]         => notFoundToProto(m).toByteArray
-    case m: GetFailure[_]       => getFailureToProto(m).toByteArray
-    case m: Subscribe[_]        => subscribeToProto(m).toByteArray
-    case m: Unsubscribe[_]      => unsubscribeToProto(m).toByteArray
-    case m: Gossip              => compress(gossipToProto(m))
-    case m: SnapshotGossip      => compress(snapshotGossipToProto(m))
-    case WriteNack              => dm.Empty.getDefaultInstance.toByteArray
-    case DeltaNack              => dm.Empty.getDefaultInstance.toByteArray
+    case m: DataEnvelope         => dataEnvelopeToProto(m).toByteArray
+    case m: Write                => writeCache.getOrAdd(m)
+    case WriteAck                => writeAckBytes
+    case m: Read                 => readCache.getOrAdd(m)
+    case m: ReadResult           => readResultToProto(m).toByteArray
+    case m: Status               => statusToProto(m).toByteArray
+    case m: DeltaPropagation     => deltaPropagationToProto(m).toByteArray
+    case m: Get[_]               => getToProto(m).toByteArray
+    case m: GetSuccess[_]        => getSuccessToProto(m).toByteArray
+    case m: DurableDataEnvelope  => durableDataEnvelopeToProto(m).toByteArray
+    case m: Changed[_]           => changedToProto(m).toByteArray
+    case m: NotFound[_]          => notFoundToProto(m).toByteArray
+    case m: GetFailure[_]        => getFailureToProto(m).toByteArray
+    case m: Subscribe[_]         => subscribeToProto(m).toByteArray
+    case m: Unsubscribe[_]       => unsubscribeToProto(m).toByteArray
+    case m: Gossip               => compress(gossipToProto(m))
+    case m: SnapshotGossip       => compress(snapshotGossipToProto(m))
+    case m: CausalMessageWrapper => compress(causalMessageWrapperToProto(m))
+    case WriteNack               => dm.Empty.getDefaultInstance.toByteArray
+    case DeltaNack               => dm.Empty.getDefaultInstance.toByteArray
     case _ =>
       throw new IllegalArgumentException(s"Can't serialize object of type ${obj.getClass} in [${getClass.getName}]")
   }
@@ -336,6 +333,66 @@ class ReplicatorMessageSerializer(val system: ExtendedActorSystem)
       versionVectorFromProto(gossip.getVersionVector),
       Some(gossip.getEntriesList.asScala.iterator.map(e => e.getKey -> dataEnvelopeFromProto(e.getEnvelope)).toMap),
       toSystemUid)
+  }
+
+  private def causalMessageWrapperToProto(msg: CausalMessageWrapper): dm.CausalMessageWrapper = {
+    val b = dm.CausalMessageWrapper.newBuilder()
+    b.setMsg(otherMessageToProto(msg.message))
+
+    val m = dm.Metadata.newBuilder().setGss(versionVectorToProto(msg.metadata.gss.asInstanceOf[VersionVector]))
+
+    if (msg.metadata.lastDeliveredSequenceMatrix.nonEmpty) {
+      msg.metadata.lastDeliveredSequenceMatrix.foreach {
+        case (key, data) =>
+//          val m2 = data.toList.map(
+//            x =>
+//              dm.Metadata.Entry1.Entry2
+//                .newBuilder()
+//                .setActor(Serialization.serializedActorPath(x._1))
+//                .setSeqNumber(x._2)
+//                .build())
+
+          val m2 = data.toList.map(
+            x =>
+              dm.Metadata.Entry1.Entry2
+                .newBuilder()
+                .setActor(Serialization.serializedActorPath(x._1))
+                .setSeqNumber(x._2)
+                .build())
+
+          m2.foreach(
+            e =>
+              m.addEntries(
+                dm.Metadata.Entry1.newBuilder().setActor(Serialization.serializedActorPath(key)).addEntries(e).build()))
+
+//          m.addEntries(dm.Metadata.Entry1.newBuilder().setActor(Serialization.serializedActorPath(key)).addAllEntries(m2).build())
+      }
+    }
+
+    b.setMetadata(m)
+    b.setFrom(Serialization.serializedActorPath(msg.from))
+    b.setTo(Serialization.serializedActorPath(msg.to))
+    b.build()
+  }
+
+  private def causalMessageWrapperFromBinary(bytes: Array[Byte]): CausalMessageWrapper = {
+    val msg = dm.CausalMessageWrapper.parseFrom(decompress(bytes))
+
+    val meta = new Metadata(
+      versionVectorFromProto(msg.getMetadata.getGss),
+      msg.getMetadata.getEntriesList.asScala.iterator
+        .map(
+          e =>
+            resolveActorRef(e.getActor) -> e.getEntriesList.asScala.iterator
+              .map(f => resolveActorRef(f.getActor) -> f.getSeqNumber)
+              .toMap)
+        .toMap)
+
+    new CausalMessageWrapper(
+      otherMessageFromProto(msg.getMsg),
+      meta,
+      resolveActorRef(msg.getFrom),
+      resolveActorRef(msg.getTo))
   }
 
   private def deltaPropagationToProto(deltaPropagation: DeltaPropagation): dm.DeltaPropagation = {

@@ -166,3 +166,25 @@ message DurableDataEnvelope {
   required OtherMessage data = 1;
   repeated DataEnvelope.PruningEntry pruning = 2;
 }
+
+
+message Metadata {
+  message Entry1 {
+    message Entry2 {
+      required string actor = 1;
+      required int64 seqNumber = 2;
+    }
+    required string actor = 1;
+    repeated Entry2 entries = 2;
+  }
+
+  required VersionVector gss = 1;
+  repeated Entry1 entries = 2;
+}
+
+message CausalMessageWrapper {
+  required OtherMessage msg = 1;
+  required Metadata metadata = 2;
+  required string from = 3;
+  required string to = 4;
+}

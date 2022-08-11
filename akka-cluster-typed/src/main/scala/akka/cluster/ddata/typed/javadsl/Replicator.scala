@@ -5,17 +5,17 @@
 package akka.cluster.ddata.typed.javadsl
 
 import java.time.Duration
-import java.util.function.{ Function => JFunction }
-
+import java.util.function.{Function => JFunction}
 import akka.actor.DeadLetterSuppression
 import akka.actor.NoSerializationVerificationNeeded
 import akka.actor.typed.ActorRef
 import akka.actor.typed.Behavior
 import akka.annotation.DoNotInherit
 import akka.annotation.InternalApi
-import akka.cluster.{ ddata => dd }
+import akka.cluster.{ddata => dd}
 import akka.cluster.ddata.Key
 import akka.cluster.ddata.ReplicatedData
+import akka.cluster.ddata.Transaction.TransactionId
 import akka.cluster.ddata.typed.internal.ReplicatorBehavior
 import akka.util.JavaDurationConverters._
 
@@ -177,10 +177,10 @@ object Replicator {
    * for example not access `sender()` reference of an enclosing actor.
    */
   final case class Update[A <: ReplicatedData] private (
-      tid: Option[Int],
       key: Key[A],
       writeConsistency: WriteConsistency,
-      replyTo: ActorRef[UpdateResponse[A]])(val modify: Option[A] => A)
+      replyTo: ActorRef[UpdateResponse[A]],
+      tid: Option[TransactionId])(val modify: Option[A] => A)
       extends Command {
 
     /**
@@ -191,13 +191,12 @@ object Replicator {
      * passed to the `modify` function.
      */
     def this(
-        tid: Option[Int],
         key: Key[A],
         initial: A,
         writeConsistency: WriteConsistency,
         replyTo: ActorRef[UpdateResponse[A]],
         modify: JFunction[A, A]) =
-      this(tid, key, writeConsistency, replyTo)(Update.modifyWithInitial(initial, data => modify.apply(data)))
+      this(key, writeConsistency, replyTo, None)(Update.modifyWithInitial(initial, data => modify.apply(data)))
 
   }
 

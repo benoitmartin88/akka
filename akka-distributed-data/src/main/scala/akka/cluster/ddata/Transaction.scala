@@ -4,11 +4,11 @@
 
 package akka.cluster.ddata
 
-import akka.actor.{ ActorContext, ActorRef }
+import akka.actor.{ActorContext, ActorRef}
 import akka.cluster.ddata.Replicator._
 import akka.pattern.ask
 import akka.util.Timeout
-import org.slf4j.{ Logger, LoggerFactory }
+import org.slf4j.{Logger, LoggerFactory}
 
 import scala.concurrent.Await
 import scala.concurrent.duration.DurationInt
@@ -32,8 +32,8 @@ object Transaction {
 //      replicator ! Update(key, WriteLocal, None, Option(tid))(modify)
 //    }
 
-    def update[T <: ReplicatedData](key: Key[T])(value: T): Unit = {
-      replicator.tell(Update(key, WriteLocal, None, Some(tid))(_ => value), actor)
+    def update[T <: ReplicatedData](key: Key[T], request: Option[Any] = None)(value: T): Unit = {
+      replicator.tell(Update(key, WriteLocal, request, Some(tid))(_ => value), actor)
     }
   }
 }
@@ -47,10 +47,12 @@ final case class Transaction(replicator: ActorRef, actor: ActorRef, operations: 
   import akka.cluster.ddata.Transaction.{ Context, TransactionId }
 
   def apply(actorContext: ActorContext, operations: (Transaction.Context) => Unit): Transaction = {
-    val system = actorContext.system
-    val replicator = system.actorOf(
-      Replicator.props(ReplicatorSettings(system).withGossipInterval(1.second).withMaxDeltaElements(10)),
-      "replicator")
+//    val system = actorContext.system
+
+    val replicator = DistributedData(actorContext.system).replicator
+//    val replicator = system.actorOf(
+//      Replicator.props(ReplicatorSettings(system).withGossipInterval(1.second).withMaxDeltaElements(10)),
+//      "replicator")
     Transaction(replicator, actorContext.self, operations)
   }
 

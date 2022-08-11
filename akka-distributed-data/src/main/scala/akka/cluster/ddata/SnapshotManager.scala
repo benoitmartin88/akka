@@ -4,6 +4,7 @@
 
 package akka.cluster.ddata
 
+import akka.actor.ActorRef
 import akka.cluster.UniqueAddress
 import akka.cluster.ddata.Key.KeyId
 import akka.cluster.ddata.Replicator.Internal.DataEnvelope
@@ -27,17 +28,19 @@ object SnapshotManager {
       mutable.Map.empty,
       (VersionVector(selfUniqueAddress, 0), Map.empty),
       mutable.TreeMap.empty[VersionVector, DataEntries](VersionVectorOrdering),
-      mutable.HashMap.empty[Transaction.TransactionId, (Snapshot, Boolean)])
+      mutable.HashMap.empty[Transaction.TransactionId, (Snapshot, Boolean)],
+      mutable.Set.empty)
   }
 }
 
-private[akka] class SnapshotManager(
+class SnapshotManager(
     val selfUniqueAddress: UniqueAddress,
     private val knownVersionVectors: mutable.Map[UniqueAddress, VersionVector],
     var globalStableSnapshot: Snapshot,
-    var localSnapshots: mutable.TreeMap[VersionVector, DataEntries],
+    var localSnapshots: mutable.TreeMap[VersionVector, DataEntries], // committed data but not yet merged into GSS
     // Boolean used to check if read only transaction: increment or not vv
-    val currentTransactions: mutable.HashMap[Transaction.TransactionId, (Snapshot, Boolean)]) {
+    val currentTransactions: mutable.HashMap[Transaction.TransactionId, (Snapshot, Boolean)],
+    private val subscribers: mutable.Set[ActorRef]) {
   import SnapshotManager._
 
   def transactionPrepare(tid: Transaction.TransactionId): Snapshot = {
@@ -67,6 +70,21 @@ private[akka] class SnapshotManager(
       case Some(last) => globalStableSnapshot._1.merge(last._1)
       case None       => globalStableSnapshot._1
     }
+  }
+
+  private[akka] def addSubscriber(subscriber: ActorRef): Unit = {
+    log.debug("SnapshotManager::addSubscriber(subscriber=[{}])", subscriber)
+    subscribers.add(subscriber)
+  }
+
+  private[akka] def removeSubscriber(subscriber: ActorRef): Unit = {
+    log.debug("SnapshotManager::removeSubscriber(subscriber=[{}])", subscriber)
+    subscribers.remove(subscriber)
+  }
+
+  private def sendChangeToAllSubscribers(vv: VersionVector): Unit = {
+    log.debug("SnapshotManager::sendChangeToAllSubscribers(vv=[{}])", vv)
+    subscribers.foreach(subscriber => subscriber ! Replicator.CausalChange(vv))
   }
 
   def getKnownVectorClocks: Map[UniqueAddress, VersionVector] = knownVersionVectors.toMap
@@ -139,7 +157,10 @@ private[akka] class SnapshotManager(
         localSnapshots.remove(p._1)
       })
 
-    if (newGssData.nonEmpty) globalStableSnapshot = (newGssVv, newGssData.toMap)
+    if (newGssData.nonEmpty) {
+      globalStableSnapshot = (newGssVv, newGssData.toMap)
+      sendChangeToAllSubscribers(newGssVv) // TODO: check if this is the correct location to call this method !
+    }
   }
 
   /**

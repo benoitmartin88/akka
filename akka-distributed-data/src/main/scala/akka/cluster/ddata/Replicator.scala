@@ -4,32 +4,13 @@
 
 package akka.cluster.ddata
 
-import akka.actor.{
-  Actor,
-  ActorInitializationException,
-  ActorLogging,
-  ActorRef,
-  ActorSelection,
-  ActorSystem,
-  Address,
-  Cancellable,
-  DeadLetterActorRef,
-  DeadLetterSuppression,
-  Deploy,
-  ExtendedActorSystem,
-  NoSerializationVerificationNeeded,
-  OneForOneStrategy,
-  Props,
-  ReceiveTimeout,
-  SupervisorStrategy,
-  Terminated
-}
+import akka.actor.{Actor, ActorInitializationException, ActorLogging, ActorRef, ActorSelection, ActorSystem, Address, Cancellable, DeadLetterActorRef, DeadLetterSuppression, Deploy, ExtendedActorSystem, NoSerializationVerificationNeeded, OneForOneStrategy, Props, ReceiveTimeout, SupervisorStrategy, Terminated}
 import akka.annotation.InternalApi
 import akka.cluster.ClusterEvent._
 import akka.cluster.ddata.DurableStore._
-import akka.cluster.ddata.Key.{ KeyId, KeyR }
+import akka.cluster.ddata.Key.{KeyId, KeyR}
 import akka.cluster.ddata.Transaction.TransactionId
-import akka.cluster.{ Cluster, Member, MemberStatus, UniqueAddress }
+import akka.cluster.{Cluster, Member, MemberStatus, UniqueAddress}
 import akka.dispatch.Dispatchers
 import akka.event.Logging
 import akka.remote.RARP
@@ -42,14 +23,14 @@ import com.typesafe.config.Config
 
 import java.security.MessageDigest
 import java.util.Optional
-import java.util.concurrent.{ ThreadLocalRandom, TimeUnit }
-import java.util.function.{ Function => JFunction }
-import scala.annotation.{ nowarn, varargs }
+import java.util.concurrent.{ThreadLocalRandom, TimeUnit}
+import java.util.function.{Function => JFunction}
+import scala.annotation.{nowarn, varargs}
 import scala.collection.immutable.TreeSet
-import scala.collection.{ immutable, mutable }
-import scala.concurrent.duration.{ FiniteDuration, _ }
-import scala.util.control.{ NoStackTrace, NonFatal }
-import scala.util.{ Failure, Success, Try }
+import scala.collection.{immutable, mutable}
+import scala.concurrent.duration.{FiniteDuration, _}
+import scala.util.control.{NoStackTrace, NonFatal}
+import scala.util.{Failure, Success, Try}
 
 @ccompatUsedUntil213
 object ReplicatorSettings {
@@ -797,6 +778,15 @@ object Replicator {
   sealed trait SubscribeResponse[A <: ReplicatedData] extends NoSerializationVerificationNeeded {
     def key: Key[A]
   }
+
+  final case class SubscribeToCausalChange(subscriber: ActorRef) extends ReplicatorMessage
+
+  // TODO
+  final case class UnsubscribeFromCausalChange(subscriber: ActorRef) extends ReplicatorMessage
+
+  sealed trait SubscribeCausalChangeResponse extends NoSerializationVerificationNeeded {}
+
+  final case class CausalChange(versionVector: VersionVector) extends SubscribeCausalChangeResponse {}
 
   /**
    * The data value is retrieved with [[#get]] using the typed key.
@@ -1794,39 +1784,41 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
           }
       }
 
-    case TwoPhaseCommitPrepare(tid, req)   => receiveTwoPhaseCommitPrepare(tid, req)
-    case TwoPhaseCommitCommit(trxn, req)   => receiveTwoPhaseCommitCommit(trxn, req)
-    case TwoPhaseCommitAbort(tid, req)     => receiveTwoPhaseCommitAbort(tid, req)
-    case Get(key, consistency, req, trxn)  => receiveGet(key, consistency, req, trxn)
-    case u @ Update(key, writeC, req, tid) => receiveUpdate(tid, key, u.modify, writeC, req)
-    case ReadRepair(key, envelope)         => receiveReadRepair(key, envelope)
-    case FlushChanges                      => receiveFlushChanges()
-    case DeltaPropagationTick              => receiveDeltaPropagationTick()
-    case GossipTick                        => receiveGossipTick()
-    case SnapshotGossipTick                => triggerSnapshotGossip(Some(snapshotManager.latestStableSnapshotVersionVector), None)
-    case ClockTick                         => receiveClockTick()
-    case Subscribe(key, subscriber)        => receiveSubscribe(key, subscriber)
-    case Unsubscribe(key, subscriber)      => receiveUnsubscribe(key, subscriber)
-    case Terminated(ref)                   => receiveTerminated(ref)
-    case MemberJoined(m)                   => receiveMemberJoining(m)
-    case MemberWeaklyUp(m)                 => receiveMemberWeaklyUp(m)
-    case MemberUp(m)                       => receiveMemberUp(m)
-    case MemberExited(m)                   => receiveMemberExiting(m)
-    case MemberRemoved(m, _)               => receiveMemberRemoved(m)
-    case evt: MemberEvent                  => receiveOtherMemberEvent(evt.member)
-    case UnreachableMember(m)              => receiveUnreachable(m)
-    case ReachableMember(m)                => receiveReachable(m)
-    case GetKeyIds                         => receiveGetKeyIds()
-    case Delete(key, consistency, req)     => receiveDelete(key, consistency, req)
-    case RemovedNodePruningTick            => receiveRemovedNodePruningTick()
-    case GetReplicaCount                   => receiveGetReplicaCount()
-    case TestFullStateGossip(enabled)      => fullStateGossipEnabled = enabled
+    case TwoPhaseCommitPrepare(tid, req)         => receiveTwoPhaseCommitPrepare(tid, req)
+    case TwoPhaseCommitCommit(trxn, req)         => receiveTwoPhaseCommitCommit(trxn, req)
+    case TwoPhaseCommitAbort(tid, req)           => receiveTwoPhaseCommitAbort(tid, req)
+    case Get(key, consistency, req, trxn)        => receiveGet(key, consistency, req, trxn)
+    case u @ Update(key, writeC, req, tid)       => receiveUpdate(tid, key, u.modify, writeC, req)
+    case ReadRepair(key, envelope)               => receiveReadRepair(key, envelope)
+    case FlushChanges                            => receiveFlushChanges()
+    case DeltaPropagationTick                    => receiveDeltaPropagationTick()
+    case GossipTick                              => receiveGossipTick()
+    case SnapshotGossipTick                      => triggerSnapshotGossip(Some(snapshotManager.latestStableSnapshotVersionVector), None)
+    case ClockTick                               => receiveClockTick()
+    case Subscribe(key, subscriber)              => receiveSubscribe(key, subscriber)
+    case Unsubscribe(key, subscriber)            => receiveUnsubscribe(key, subscriber)
+    case SubscribeToCausalChange(subscriber)     => receiveSubscribeToCausalChange(subscriber)
+    case UnsubscribeFromCausalChange(subscriber) => receiveUnsubscribeFromCausalChange(subscriber)
+    case Terminated(ref)                         => receiveTerminated(ref)
+    case MemberJoined(m)                         => receiveMemberJoining(m)
+    case MemberWeaklyUp(m)                       => receiveMemberWeaklyUp(m)
+    case MemberUp(m)                             => receiveMemberUp(m)
+    case MemberExited(m)                         => receiveMemberExiting(m)
+    case MemberRemoved(m, _)                     => receiveMemberRemoved(m)
+    case evt: MemberEvent                        => receiveOtherMemberEvent(evt.member)
+    case UnreachableMember(m)                    => receiveUnreachable(m)
+    case ReachableMember(m)                      => receiveReachable(m)
+    case GetKeyIds                               => receiveGetKeyIds()
+    case Delete(key, consistency, req)           => receiveDelete(key, consistency, req)
+    case RemovedNodePruningTick                  => receiveRemovedNodePruningTick()
+    case GetReplicaCount                         => receiveGetReplicaCount()
+    case TestFullStateGossip(enabled)            => fullStateGossipEnabled = enabled
   }
 
   def receiveTwoPhaseCommitPrepare(tid: TransactionId, req: Option[Any]): Unit = {
     log.info("Received TwoPhaseCommitPrepare for transaction [{}].", tid)
 
-    snapshotManager.currentTransactions.contains(tid)
+//    snapshotManager.currentTransactions.contains(tid)
 
     val reply = if (snapshotManager.currentTransactions.contains(tid)) {
       log.debug("Transaction id " + tid + " already inflight")
@@ -1849,7 +1841,7 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
         req)
     } else {
       triggerSnapshotGossip(Some(trxn.version), Some(snapshotManager.currentTransactions(trxn.tid)._1._2))
-      snapshotManager.commit(trxn.tid)
+      snapshotManager.commit(trxn.tid)  // TODO: return commitVV
 
       replyTo ! TwoPhaseCommitCommitSuccess(req)
     }
@@ -2369,7 +2361,7 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
   def triggerSnapshotGossip(version: Option[VersionVector], updatedData: Option[Map[KeyId, DataEnvelope]]): Unit = {
 //    println("=================== triggerSnapshotGossip() version=" + version + ", updatedData=" + updatedData)
     // broadcast to all known nodes
-    allNodes.foreach(address => snapshotGossipTo(address, version, updatedData))  // TODO: can this be better ?
+    allNodes.foreach(address => snapshotGossipTo(address, version, updatedData)) // TODO: can this be better ?
   }
 
   def snapshotGossipTo(
@@ -2381,7 +2373,7 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
 
     val vv = version match {
       case Some(v) => v
-      case None => snapshotManager.localSnapshots.last._1
+      case None    => snapshotManager.localSnapshots.last._1
     }
 
     val msg = SnapshotGossip(
@@ -2559,7 +2551,7 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
         versionVector,
         updatedData)
 
-    snapshotManager.updateKnownVersionVectors(from, versionVector)
+    snapshotManager.updateKnownVersionVectors(from, versionVector)  // TODO: this updates GSS, should this be done after updating the data ?
 
     updatedData match {
       case Some(p) =>
@@ -2587,6 +2579,16 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
   def hasSubscriber(subscriber: ActorRef): Boolean =
     subscribers.exists { case (_, s)    => s.contains(subscriber) } ||
     newSubscribers.exists { case (_, s) => s.contains(subscriber) }
+
+  def receiveSubscribeToCausalChange(subscriber: ActorRef): Unit = {
+    log.debug("Replicator::receiveSubscribeToCausalChange(subscriber=" + subscriber + ")")
+    println("Replicator::receiveSubscribeToCausalChange(subscriber=" + subscriber + ")")
+    snapshotManager.addSubscriber(subscriber)
+  }
+
+  def receiveUnsubscribeFromCausalChange(subscriber: ActorRef): Unit = {
+    snapshotManager.removeSubscriber(subscriber)
+  }
 
   def receiveTerminated(ref: ActorRef): Unit = {
     if (ref == durableStore) {

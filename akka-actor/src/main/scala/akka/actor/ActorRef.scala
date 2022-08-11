@@ -4,25 +4,18 @@
 
 package akka.actor
 
-import java.util.concurrent.ConcurrentHashMap
-
-import scala.annotation.tailrec
-import scala.annotation.nowarn
-import scala.collection.immutable
-import scala.util.control.NonFatal
-
-import akka.annotation.DoNotInherit
-import akka.annotation.InternalApi
+import akka.annotation.{ DoNotInherit, InternalApi }
 import akka.dispatch._
 import akka.dispatch.sysmsg._
-import akka.event.AddressTerminatedTopic
-import akka.event.EventStream
-import akka.event.Logging
-import akka.event.MarkerLoggingAdapter
+import akka.event.{ AddressTerminatedTopic, EventStream, Logging, MarkerLoggingAdapter }
 import akka.pattern.PromiseActorRef
-import akka.serialization.JavaSerializer
-import akka.serialization.Serialization
+import akka.serialization.{ JavaSerializer, Serialization }
 import akka.util.OptionVal
+
+import java.util.concurrent.ConcurrentHashMap
+import scala.annotation.{ nowarn, tailrec }
+import scala.collection.immutable
+import scala.util.control.NonFatal
 
 object ActorRef {
 
@@ -33,6 +26,24 @@ object ActorRef {
   final val noSender: ActorRef = Actor.noSender
 
 }
+
+case class Metadata(var gss: Any, var lastDeliveredSequenceMatrix: Map[ActorRef, Map[ActorRef, Long]] = Map.empty)
+    extends Serializable {
+
+  def incrementSequence(from: ActorRef, to: ActorRef): Unit = { // TODO: this can be more efficient
+    assert(null != from)
+    assert(null != to)
+    val toMap = lastDeliveredSequenceMatrix.getOrElse(to, Map.empty)
+    val seq = toMap.getOrElse(from, 0L)
+
+    lastDeliveredSequenceMatrix = lastDeliveredSequenceMatrix.updated(to, toMap.updated(from, seq + 1))
+  }
+
+  override def toString: String = "{gss=" + gss + ", matrix=" + lastDeliveredSequenceMatrix + "}"
+}
+
+class CausalMessageWrapper(var message: Any, var metadata: Metadata, var from: ActorRef, var to: ActorRef)
+    extends Serializable {}
 
 /**
  * Immutable and serializable handle to an actor, which may or may not reside
@@ -145,6 +156,20 @@ abstract class ActorRef extends java.lang.Comparable[ActorRef] with Serializable
    * <p/>
    */
   def !(message: Any)(implicit sender: ActorRef = Actor.noSender): Unit
+
+  /**
+   * Add meta-data to message (GSS + Sequence matrix)
+   */
+  final def causalTell(msg: Any, causalContext: Metadata, sender: ActorRef): Unit = {
+    causalContext.incrementSequence(sender, this)
+    println("ActorRef::causalTell(causalContext=" + causalContext + ")")
+    val wrappedMessage = new CausalMessageWrapper(
+      msg,
+      causalContext.copy(causalContext.gss, causalContext.lastDeliveredSequenceMatrix),
+      sender,
+      this)
+    this.!(wrappedMessage)(sender)
+  }
 
   /**
    * Forwards the message and passes the original sender actor as the sender.
