@@ -41,9 +41,9 @@ class TransactionSpec extends MultiNodeSpec(TransactionSpec) with STMultiNodeSpe
 
   val cluster = Cluster(system)
   implicit val selfUniqueAddress: SelfUniqueAddress = DistributedData(system).selfUniqueAddress
-  val replicator = system.actorOf(
-    Replicator.props(ReplicatorSettings(system).withGossipInterval(1.second).withMaxDeltaElements(10)),
-    "replicator")
+
+  val replicator = DistributedData(system).replicator
+
   val timeout = 3.seconds.dilated
 
 //  val KeyA = GCounterKey("A")
