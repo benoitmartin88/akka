@@ -110,7 +110,7 @@ message Gossip {
 
 message SnapshotGossip {
   message Entry {
-    required string key = 1;
+    required OtherMessage key = 1;
     required DataEnvelope envelope = 2;
   }
   required UniqueAddress fromNode = 1;

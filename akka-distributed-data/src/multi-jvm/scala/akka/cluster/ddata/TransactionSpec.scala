@@ -4,7 +4,9 @@
 
 package akka.cluster.ddata
 
+import akka.actor.{ActorIdentity, ActorRef, Deploy, Identify, Props}
 import akka.cluster.Cluster
+import akka.cluster.ddata.Replicator._
 import akka.cluster.ddata.Transaction.TransactionId
 import akka.remote.testconductor.RoleName
 import akka.remote.testkit.{MultiNodeConfig, MultiNodeSpec}
@@ -23,6 +25,8 @@ object TransactionSpec extends MultiNodeConfig {
     akka.actor.provider = "cluster"
     akka.log-dead-letters-during-shutdown = off
     #akka.cluster.distributed-data.delta-crdt.enabled = off
+    akka.actor.allow-java-serialization = true
+    akka.remote.artery.enabled = true
     """))
 
   testTransport(on = true)
@@ -33,17 +37,36 @@ class TransactionSpecMultiJvmNode1 extends TransactionSpec
 class TransactionSpecMultiJvmNode2 extends TransactionSpec
 class TransactionSpecMultiJvmNode3 extends TransactionSpec
 
+final case class MyMessage(var i: Int, var replyTo: ActorRef) {}
+final case class Ack(i: Int) {}
+
+object MyCausalActor {
+  def props(): Props = Props(new MyCausalActor())
+}
+
+final case class MyCausalActor() extends CausalActor {
+  override def receive: Receive = {
+    super.receive.orElse({
+      case msg: MyMessage =>
+        println("MyCausalActor::receive(msg=" + msg + ")")
+        msg.replyTo ! Ack(msg.i)
+      //          case msg: Replicator.UpdateSuccess[MessageQueue] =>
+      //            println("MyCausalActor::receive(msg=" + msg + ")")
+    })
+  }
+}
+
 class TransactionSpec extends MultiNodeSpec(TransactionSpec) with STMultiNodeSpec with ImplicitSender {
-  import Replicator._
   import TransactionSpec._
 
   override def initialParticipants = roles.size
 
   val cluster = Cluster(system)
   implicit val selfUniqueAddress: SelfUniqueAddress = DistributedData(system).selfUniqueAddress
-  val replicator = system.actorOf(
-    Replicator.props(ReplicatorSettings(system).withGossipInterval(1.second).withMaxDeltaElements(10)),
-    "replicator")
+//  val replicator = system.actorOf(
+//    Replicator.props(ReplicatorSettings(system).withGossipInterval(1.second).withMaxDeltaElements(10)),
+//    "replicator")
+  val replicator: ActorRef = DistributedData(system).replicator
   val timeout = 3.seconds.dilated
 
 //  val KeyA = GCounterKey("A")
@@ -422,8 +445,61 @@ class TransactionSpec extends MultiNodeSpec(TransactionSpec) with STMultiNodeSpe
       enterBarrierAfterTestStep()
     }
 
-    "maintain causality" in {
-      // TODO
+    "send causal message" in {
+      join(first, first)
+      join(second, first)
+      join(third, first)
+
+      runOn(first, second, third) {
+        within(10.seconds) {
+          awaitAssert {
+            replicator ! GetReplicaCount
+            expectMsg(ReplicaCount(3))
+          }
+        }
+      }
+
+      enterBarrier("3-nodes")
+
+      runOn(second) {
+        system.actorOf(MyCausalActor.props().withDeploy(Deploy.local), "MyCausalActorA")
+      }
+
+      runOn(third) {
+        system.actorOf(MyCausalActor.props().withDeploy(Deploy.local), "MyCausalActorB")
+      }
+
+      enterBarrier("nodes 2 and 3 ready")
+
+      runOn(first) {
+        system.actorSelection(node(second) / "user" / "MyCausalActorA") ! Identify(None)
+        val myCausalActorA = expectMsgType[ActorIdentity](5.seconds).ref.get
+
+        system.actorSelection(node(third) / "user" / "MyCausalActorB") ! Identify(None)
+        val myCausalActorB = expectMsgType[ActorIdentity](5.seconds).ref.get
+
+        // send from testActor to myCausalActor
+        val t1 = new Transaction(replicator, testActor, (ctx) => {
+          println("Transaction context = " + ctx)
+          ctx.causalTell(MyMessage(42, ctx.actor), to = myCausalActorA)
+          ctx.causalTell(MyMessage(43, ctx.actor), to = myCausalActorA)
+
+          ctx.causalTell(MyMessage(44, ctx.actor), to = myCausalActorB)
+          ctx.causalTell(MyMessage(45, ctx.actor), to = myCausalActorB)
+        })
+        t1.commit() should be(true)
+
+        within(10.seconds) {
+          awaitAssert {
+            expectMsg(Ack(42))
+            expectMsg(Ack(43))
+            expectMsg(Ack(44))
+            expectMsg(Ack(45))
+          }
+        }
+      }
+
+      enterBarrier("after")
     }
 
   }

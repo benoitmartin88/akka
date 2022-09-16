@@ -322,7 +322,7 @@ class ReplicatorMessageSerializer(val system: ExtendedActorSystem)
     if (gossip.updatedData.nonEmpty)
       gossip.updatedData.get.foreach {
         case (key, data) =>
-          b.addEntries(dm.SnapshotGossip.Entry.newBuilder().setKey(key).setEnvelope(dataEnvelopeToProto(data)))
+          b.addEntries(dm.SnapshotGossip.Entry.newBuilder().setKey(otherMessageToProto(key)).setEnvelope(dataEnvelopeToProto(data)))
       }
     gossip.toSystemUid.foreach(b.setToSystemUid) // can be None when sending back to a node of version 2.5.21
     b.build()
@@ -334,7 +334,7 @@ class ReplicatorMessageSerializer(val system: ExtendedActorSystem)
     SnapshotGossip(
       uniqueAddressFromProto(gossip.getFromNode),
       versionVectorFromProto(gossip.getVersionVector),
-      Some(gossip.getEntriesList.asScala.iterator.map(e => e.getKey -> dataEnvelopeFromProto(e.getEnvelope)).toMap),
+      Some(gossip.getEntriesList.asScala.iterator.map(e => otherMessageFromProto(e.getKey).asInstanceOf[KeyR] -> dataEnvelopeFromProto(e.getEnvelope)).toMap),
       toSystemUid)
   }
 

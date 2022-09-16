@@ -22,8 +22,8 @@ class SnapshotManagerSpec extends AnyWordSpec with Matchers {
 
   "SnapshotManager" must {
 //    val dataEntries: DataEntries = Map.empty[KeyId, DataEnvelope]
-    val key1 = "key1"
-    val key2 = "key2"
+    val key1 = GCounterKey("key1")
+    val key2 = GCounterKey("key2")
     val c1 = GCounter() :+ 1
     val c2 = GCounter() :+ 2
     val c3 = GCounter() :+ 3
@@ -182,7 +182,7 @@ class SnapshotManagerSpec extends AnyWordSpec with Matchers {
     "get unknown key" in {
       val tid = "44"
       val (_, _) = snapshotManager.transactionPrepare(tid)
-      val key = "unknown key"
+      val key = GCounterKey("unknown key")
       snapshotManager.get(tid, key) should be(None)
       snapshotManager.abort(tid)
     }

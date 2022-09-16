@@ -4,30 +4,23 @@
 
 package akka.cluster.ddata.protobuf
 
-import java.{ lang => jl }
-import java.io.NotSerializableException
-import java.util
-import java.util.ArrayList
-import java.util.Collections
-import java.util.Comparator
-import scala.annotation.tailrec
-import scala.collection.immutable
-import scala.annotation.nowarn
-import akka.actor.ActorRef
-import akka.actor.ExtendedActorSystem
-import akka.cluster.ddata._
+import akka.actor.{ActorRef, ExtendedActorSystem}
 import akka.cluster.ddata.Replicator.Internal._
-import akka.cluster.ddata.protobuf.msg.{ ReplicatedDataMessages => rd }
-import akka.cluster.ddata.protobuf.msg.{ ReplicatorMessages => dm }
+import akka.cluster.ddata._
 import akka.cluster.ddata.protobuf.msg.ReplicatorMessages.OtherMessage
+import akka.cluster.ddata.protobuf.msg.{ReplicatedDataMessages => rd, ReplicatorMessages => dm}
 import akka.protobufv3.internal.GeneratedMessageV3
 import akka.remote.ByteStringUtils
-import akka.serialization.BaseSerializer
-import akka.serialization.Serialization
-import akka.serialization.SerializerWithStringManifest
+import akka.serialization.{BaseSerializer, Serialization, SerializerWithStringManifest}
 import akka.util.ByteString.UTF_8
-import akka.util.ccompat._
 import akka.util.ccompat.JavaConverters._
+import akka.util.ccompat._
+
+import java.io.NotSerializableException
+import java.util.{ArrayList, Collections, Comparator}
+import java.{util, lang => jl}
+import scala.annotation.{nowarn, tailrec}
+import scala.collection.immutable
 
 @ccompatUsedUntil213
 private object ReplicatedDataSerializer {
@@ -294,7 +287,9 @@ class ReplicatedDataSerializer(val system: ExtendedActorSystem)
   private val PNCounterMapKeyManifest = "j"
   private val ORMultiMapManifest = "K"
   private val ORMultiMapKeyManifest = "k"
-  private val VersionVectorManifest = "L"
+  private val MessageQueueManifest = "L"
+  private val MessageQueueKeyManifest = "l"
+  private val VersionVectorManifest = "M"
 
   private val fromBinaryMap = collection.immutable.HashMap[String, Array[Byte] => AnyRef](
     GSetManifest -> gsetFromBinary,
@@ -316,6 +311,7 @@ class ReplicatedDataSerializer(val system: ExtendedActorSystem)
     LWWMapManifest -> lwwmapFromBinary,
     PNCounterMapManifest -> pncountermapFromBinary,
     ORMultiMapManifest -> multimapFromBinary,
+    MessageQueueManifest -> messageQueueFromBinary,
     DeletedDataManifest -> (_ => DeletedData),
     VersionVectorManifest -> versionVectorFromBinary,
     GSetKeyManifest -> (bytes => GSetKey(keyIdFromBinary(bytes))),
@@ -327,7 +323,8 @@ class ReplicatedDataSerializer(val system: ExtendedActorSystem)
     ORMapKeyManifest -> (bytes => ORMapKey(keyIdFromBinary(bytes))),
     LWWMapKeyManifest -> (bytes => LWWMapKey(keyIdFromBinary(bytes))),
     PNCounterMapKeyManifest -> (bytes => PNCounterMapKey(keyIdFromBinary(bytes))),
-    ORMultiMapKeyManifest -> (bytes => ORMultiMapKey(keyIdFromBinary(bytes))))
+    ORMultiMapKeyManifest -> (bytes => ORMultiMapKey(keyIdFromBinary(bytes))),
+    MessageQueueKeyManifest -> (bytes => MessageQueueKey(keyIdFromBinary(bytes))))
 
   override def manifest(obj: AnyRef): String = obj match {
     case _: ORSet[_]                     => ORSetManifest
@@ -346,6 +343,7 @@ class ReplicatedDataSerializer(val system: ExtendedActorSystem)
     case _: LWWMap[_, _]                 => LWWMapManifest
     case _: PNCounterMap[_]              => PNCounterMapManifest
     case _: ORMultiMap[_, _]             => ORMultiMapManifest
+    case _: MessageQueue                 => MessageQueueManifest
     case DeletedData                     => DeletedDataManifest
     case _: VersionVector                => VersionVectorManifest
 
@@ -359,6 +357,7 @@ class ReplicatedDataSerializer(val system: ExtendedActorSystem)
     case _: LWWMapKey[_, _]     => LWWMapKeyManifest
     case _: PNCounterMapKey[_]  => PNCounterMapKeyManifest
     case _: ORMultiMapKey[_, _] => ORMultiMapKeyManifest
+    case _: MessageQueueKey     => MessageQueueKeyManifest
 
     case _: ORSet.DeltaGroup[_]       => ORSetDeltaGroupManifest
     case _: ORMap.DeltaGroup[_, _]    => ORMapDeltaGroupManifest
@@ -385,6 +384,7 @@ class ReplicatedDataSerializer(val system: ExtendedActorSystem)
     case m: LWWMap[_, _]                 => compress(lwwmapToProto(m))
     case m: PNCounterMap[_]              => compress(pncountermapToProto(m))
     case m: ORMultiMap[_, _]             => compress(multimapToProto(m))
+    case m: MessageQueue                 => compress(messageQueueToProto(m))
     case DeletedData                     => dm.Empty.getDefaultInstance.toByteArray
     case m: VersionVector                => versionVectorToProto(m).toByteArray
     case Key(id)                         => keyIdToBinary(id)
@@ -910,6 +910,33 @@ class ReplicatedDataSerializer(val system: ExtendedActorSystem)
         throw new IllegalArgumentException("ORMap.DeltaGroup should not be nested")
     }
     b.build()
+  }
+
+  def messageQueueToProto(queue: MessageQueue): rd.MessageQueue = {
+    val messageQueueBuilder = rd.MessageQueue.newBuilder()
+    val entries = new util.LinkedList[rd.MessageQueue.Entry]()
+
+    queue.queue.foreach(t => {
+      entries.add(
+        rd.MessageQueue.Entry
+          .newBuilder()
+          .setMessage(otherMessageToProto(t._1))
+          .setFrom(Serialization.serializedActorPath(t._2))
+          .build())
+    })
+
+    messageQueueBuilder.addAllEntries(entries).build()
+  }
+
+  def messageQueueFromBinary(bytes: Array[Byte]): MessageQueue = {
+    val messageQueue = MessageQueue.empty()
+    rd.MessageQueue
+      .parseFrom(decompress(bytes))
+      .getEntriesList
+      .forEach(e => {
+        messageQueue.enqueue(otherMessageFromProto(e.getMessage), resolveActorRef(e.getFrom))
+      })
+    messageQueue
   }
 
   def lwwmapToProto(lwwmap: LWWMap[_, _]): rd.LWWMap = {

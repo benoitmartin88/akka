@@ -28,6 +28,7 @@ import akka.annotation.InternalApi
 import akka.cluster.ClusterEvent._
 import akka.cluster.ddata.DurableStore._
 import akka.cluster.ddata.Key.{ KeyId, KeyR }
+import akka.cluster.ddata.SnapshotManager.DataEntries
 import akka.cluster.ddata.Transaction.TransactionId
 import akka.cluster.{ Cluster, Member, MemberStatus, UniqueAddress }
 import akka.dispatch.Dispatchers
@@ -806,7 +807,6 @@ object Replicator {
   final case class Changed[A <: ReplicatedData](key: Key[A])(data: A)
       extends SubscribeResponse[A]
       with ReplicatorMessage {
-
     /**
      * The data value, with correct type.
      * Scala pattern matching cannot infer the type from the `key` parameter.
@@ -1250,7 +1250,7 @@ object Replicator {
     final case class SnapshotGossip(
         fromNode: UniqueAddress,
         versionVector: VersionVector,
-        updatedData: Option[Map[KeyId, DataEnvelope]],
+        updatedData: Option[DataEntries],
         toSystemUid: Option[Long])
         extends ReplicatorMessage
         with DestinationSystemUid
@@ -1878,10 +1878,11 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
       // in a transaction
       val tid = trxn.get.tid
 
-      val reply = snapshotManager.get(tid, key.id) match {
+      val reply = snapshotManager.get(tid, key) match {
         case Some(data) => GetSuccess(key, req)(data)
         case None       => NotFound(key, req)
       }
+
       replyTo ! reply
     }
   }
@@ -1895,7 +1896,7 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
     if (trxn.nonEmpty) {
 //      assert(!trxn.get.version.isEmpty)
       // in a transaction with causal context.
-      val reply = snapshotManager.get(trxn.get.tid, key.id) match {
+      val reply = snapshotManager.get(trxn.get.tid, key) match {
         case Some(data) => GetSuccess(key, req)(data)
         case None       => NotFound(key, req)
       }
@@ -1990,7 +1991,7 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
           handleUpdate(key, writeConsistency, envelope, req, delta)
         } else {
           // in a transaction: save for later
-          snapshotManager.update(tid.get, key.id, envelope)
+          snapshotManager.update(tid.get, key, envelope)  // TODO: handle the case where prepare has not been called
           replyTo ! UpdateSuccess(key, req)
           log.debug("[{}] - Update successful for key [{}]. replyTo=[{}]", tid, key, replyTo)
         }
@@ -2268,8 +2269,9 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
     }
 
     if (subscribers.nonEmpty) {
-      for (key <- changed; if subscribers.contains(key); subs <- subscribers.get(key))
+      for (key <- changed; if subscribers.contains(key); subs <- subscribers.get(key)) {
         notify(key, subs)
+      }
     }
 
     // Changed event is sent to new subscribers even though the key has not changed,
@@ -2366,22 +2368,22 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
       selectRandomNode(allNodes.toVector).foreach(gossipTo)
   }
 
-  def triggerSnapshotGossip(version: Option[VersionVector], updatedData: Option[Map[KeyId, DataEnvelope]]): Unit = {
+  def triggerSnapshotGossip(version: Option[VersionVector], updatedData: Option[DataEntries]): Unit = {
 //    println("=================== triggerSnapshotGossip() version=" + version + ", updatedData=" + updatedData)
     // broadcast to all known nodes
-    allNodes.foreach(address => snapshotGossipTo(address, version, updatedData))  // TODO: can this be better ?
+    allNodes.foreach(address => snapshotGossipTo(address, version, updatedData)) // TODO: can this be better ?
   }
 
   def snapshotGossipTo(
       address: UniqueAddress,
       version: Option[VersionVector],
-      updatedData: Option[Map[KeyId, DataEnvelope]]): Unit = {
+      updatedData: Option[DataEntries]): Unit = {
     val to = replica(address)
     val toSystemUid = Some(address.longUid)
 
     val vv = version match {
       case Some(v) => v
-      case None => snapshotManager.localSnapshots.last._1
+      case None    => snapshotManager.localSnapshots.last._1
     }
 
     val msg = SnapshotGossip(
@@ -2550,7 +2552,7 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
   def receiveSnapshotGossip(
       from: UniqueAddress,
       versionVector: VersionVector,
-      updatedData: Option[Map[KeyId, DataEnvelope]]): Unit = {
+      updatedData: Option[Map[KeyR, DataEnvelope]]): Unit = {
     if (log.isDebugEnabled)
       log.debug(
         "Received SnapshotGossip from [{}], from=[{}], versionVector=[{}], updatedData=[{}].",
@@ -2564,8 +2566,11 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
     updatedData match {
       case Some(p) =>
         snapshotManager.updateFromGossip(versionVector, p)
+//        p.foreach(pp => changed += pp._1.id)
+        p.foreach(pp => handleUpdate(pp._1, WriteLocal, pp._2, None, None, sendReply = false))
       case _ =>
     }
+    self ! FlushChanges   // force notification to subscribers
   }
 
   def receiveSubscribe(key: KeyR, subscriber: ActorRef): Unit = {

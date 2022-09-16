@@ -5,7 +5,7 @@
 package akka.cluster.ddata
 
 import akka.cluster.UniqueAddress
-import akka.cluster.ddata.Key.KeyId
+import akka.cluster.ddata.Key.KeyR
 import akka.cluster.ddata.Replicator.Internal.DataEnvelope
 import akka.cluster.ddata.SnapshotManager.{DataEntries, Snapshot}
 import org.slf4j.{Logger, LoggerFactory}
@@ -16,7 +16,7 @@ import scala.collection.mutable
  * INTERNAL API: Used by the Replicator actor.
  */
 object SnapshotManager {
-  type DataEntries = Map[KeyId, DataEnvelope]
+  type DataEntries = Map[KeyR, DataEnvelope]
   type Snapshot = (VersionVector, DataEntries)
 
   val log: Logger = LoggerFactory.getLogger("akka.cluster.ddata.SnapshotManager")
@@ -42,7 +42,7 @@ private[akka] class SnapshotManager(
 
   def transactionPrepare(tid: Transaction.TransactionId): Snapshot = {
     log.debug("SnapshotManager::transactionPrepare(tid=[{}])", tid)
-    val res = (latestStableSnapshotVersionVector, Map.empty[KeyId, DataEnvelope])
+    val res = (latestStableSnapshotVersionVector, Map.empty[KeyR, DataEnvelope])
     currentTransactions.update(tid, (res, false))
     res
   }
@@ -119,7 +119,7 @@ private[akka] class SnapshotManager(
     }
 
     // materialize before current snapshot
-    val newGssData = mutable.Map.empty[KeyId, DataEnvelope]
+    val newGssData = mutable.Map.empty[KeyR, DataEnvelope]
     newGssData ++= globalStableSnapshot._2 // apply old GSS values
 
     // apply localSnapshots
@@ -147,17 +147,18 @@ private[akka] class SnapshotManager(
    * @param key key to lookup
    * @return value associated to the given key
    */
-  def get(tid: Transaction.TransactionId, key: KeyId): Option[ReplicatedData] = {
+  def get(tid: Transaction.TransactionId, key: KeyR): Option[ReplicatedData] = {
     log.debug("SnapshotManager::get(tid=[{}], key=[{}])", tid, key)
 
     // apply currentTransactions
     currentTransactions.get(tid) match {
       case Some(currentTransactionSnapshot) =>
         // materialize data for given key
-        val newData = mutable.Map.empty[KeyId, DataEnvelope] // TODO: I don't need a map for just 1 value
+        val newData = mutable.Map.empty[KeyR, DataEnvelope] // TODO: I don't need a map for just 1 value
 
         // apply globalStableSnapshot
         newData ++= globalStableSnapshot._2.filter(x => x._1 == key)
+//        println("==== 1 newData=" + newData)
 
         // apply localSnapshots
         localSnapshots
@@ -178,14 +179,22 @@ private[akka] class SnapshotManager(
             }
           })
 
+//        println("==== 2 newData=" + newData)
+//        println("==== 3 currentTransactionSnapshot=" + currentTransactionSnapshot)
+
         // apply currentTransactionSnapshot
         currentTransactionSnapshot._1._2.foreach(d => {
+//          println("==== 4 d=" + d)
           newData.get(d._1) match {
             case Some(newDataValue) =>
-              newData.update(key, newDataValue.merge(d._2))
-            case None => newData.update(key, d._2)
+//              println("==== 5 merge key=" + key + ", newDataValue=" + newDataValue + ", d._2=" + d._2)
+              newData.update(d._1, newDataValue.merge(d._2))
+            case None =>
+//              println("==== 5' merge key=" + key + ", d._2=" + d._2)
+              newData.update(d._1, d._2)
           }
         })
+//        println("==== 6 newData=" + newData)
 
         newData.get(key) match {
           case Some(d) => Some(d.data)
@@ -195,13 +204,14 @@ private[akka] class SnapshotManager(
     }
   }
 
-  def update(tid: Transaction.TransactionId, updatedData: Map[KeyId, DataEnvelope]): Unit = {
+  def update(tid: Transaction.TransactionId, updatedData: DataEntries): Unit = {
     log.debug("SnapshotManager::update(tid=[{}], updatedData=[{}])", tid, updatedData)
     updatedData.foreach(p => update(tid, p._1, p._2))
   }
 
-  def update(tid: Transaction.TransactionId, key: KeyId, envelope: DataEnvelope): Unit = {
+  def update(tid: Transaction.TransactionId, key: KeyR, envelope: DataEnvelope): Unit = {
     log.debug("SnapshotManager::update(tid=[{}], key=[{}], envelope=[{}])", tid, key, envelope)
+    println("SnapshotManager::update(tid=[" + tid + "], key=[" + key + "]), envelope=" + envelope)
     currentTransactions.get(tid) match {
       case Some(d) =>
         val newData = d._1._2.updated(key, envelope)
@@ -210,7 +220,7 @@ private[akka] class SnapshotManager(
     }
   }
 
-  def updateFromGossip(version: VersionVector, updatedData: Map[KeyId, DataEnvelope]): Unit = {
+  def updateFromGossip(version: VersionVector, updatedData: DataEntries): Unit = {
     log.debug("SnapshotManager::updateFromGossip(version=[{}], updatedData=[{}])", version, updatedData)
 
     localSnapshots.get(version) match {

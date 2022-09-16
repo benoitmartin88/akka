@@ -145,5 +145,11 @@ message ORMultiMap {
    optional bool withValueDeltas = 3;
  }
 
+message MessageQueue {
+  message Entry {
+    required OtherMessage message = 1;
+    required string from = 2;
+  }
 
-
+  repeated Entry entries = 1;
+}
