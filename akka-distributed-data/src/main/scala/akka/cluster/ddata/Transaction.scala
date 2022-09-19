@@ -52,10 +52,10 @@ object Transaction {
           (replicator ? Replicator.Get(key, ReadLocal, None, Some(this))).mapTo[Replicator.GetResponse[MessageQueue]],
           askTimeout.duration) match {
           case data @ Replicator.GetSuccess(key, _) =>
-//            q = q.merge(data.get(key))
-            println("- q=" + q.queue + ", key=" + key + ", data.get(key).queue=" + data.get(key).queue)
-            q = new MessageQueue(q.queue ++ data.get(key).queue)
-            println("---- q=" + q)
+            q = q.merge(data.get(key))
+//            println("- q=" + q.queue + ", key=" + key + ", data.get(key).queue=" + data.get(key).queue)
+//            q = new MessageQueue(q.queue ++ data.get(key).queue)
+//            println("---- q=" + q)
           case _ => // do nothing
         }
       } catch {

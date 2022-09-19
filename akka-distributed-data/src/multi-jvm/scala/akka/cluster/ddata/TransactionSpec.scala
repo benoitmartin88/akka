@@ -491,15 +491,19 @@ class TransactionSpec extends MultiNodeSpec(TransactionSpec) with STMultiNodeSpe
 
         within(10.seconds) {
           awaitAssert {
-            expectMsg(Ack(42))
-            expectMsg(Ack(43))
-            expectMsg(Ack(44))
-            expectMsg(Ack(45))
+            expectMsg(UpdateSuccess(MessageQueueKey.create(myCausalActorA), None))
+            expectMsg(UpdateSuccess(MessageQueueKey.create(myCausalActorA), None))
+            expectMsg(UpdateSuccess(MessageQueueKey.create(myCausalActorB), None))
+            expectMsg(UpdateSuccess(MessageQueueKey.create(myCausalActorB), None))
+
+            val results = receiveN(4).map(_.asInstanceOf[Ack]).sortWith(_.i < _.i)
+            println("results=" + results)
+            results should be(Vector[Ack](Ack(42), Ack(43), Ack(44), Ack(45)))
           }
         }
       }
 
-      enterBarrier("after")
+      enterBarrierAfterTestStep()
     }
 
   }
