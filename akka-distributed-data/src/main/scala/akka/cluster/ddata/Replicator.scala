@@ -1826,8 +1826,6 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
   def receiveTwoPhaseCommitPrepare(tid: TransactionId, req: Option[Any]): Unit = {
     log.info("Received TwoPhaseCommitPrepare for transaction [{}].", tid)
 
-    snapshotManager.currentTransactions.contains(tid)
-
     val reply = if (snapshotManager.currentTransactions.contains(tid)) {
       log.debug("Transaction id " + tid + " already inflight")
       TwoPhaseCommitPrepareError("Transaction id " + tid + " already inflight", req)
