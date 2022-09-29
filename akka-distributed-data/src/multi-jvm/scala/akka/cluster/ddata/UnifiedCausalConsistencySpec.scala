@@ -6,11 +6,12 @@ package akka.cluster.ddata
 
 import akka.actor.{ActorIdentity, ActorRef, Deploy, Identify, Metadata, Props}
 import akka.cluster.Cluster
-import akka.remote.RemotingMultiNodeSpec
 import akka.remote.testconductor.RoleName
-import akka.remote.testkit.MultiNodeConfig
+import akka.remote.testkit.{MultiNodeConfig, MultiNodeSpec}
 import akka.remote.transport.ThrottlerTransportAdapter.Direction
+import akka.testkit.{DefaultTimeout, ImplicitSender}
 import com.typesafe.config.ConfigFactory
+import org.scalatest.Suite
 
 import scala.concurrent.duration.DurationInt
 
@@ -20,7 +21,7 @@ object UnifiedCausalConsistencyMultiJvmSpec extends MultiNodeConfig {
       akka.actor.provider = "cluster"
       akka.actor.allow-java-serialization = true
       akka.remote.artery.enabled = false
-    """)).withFallback(RemotingMultiNodeSpec.commonConfig))
+    """)))
 
   val node1 = role("node1")
   val node2 = role("node2")
@@ -67,7 +68,12 @@ final case class MyCausalActor(var onCausalMsg: (Metadata, MyCausalMessage) => U
   }
 }
 
-class UnifiedCausalConsistencySpec extends RemotingMultiNodeSpec(UnifiedCausalConsistencyMultiJvmSpec) {
+class UnifiedCausalConsistencySpec
+    extends MultiNodeSpec(UnifiedCausalConsistencyMultiJvmSpec)
+    with Suite
+    with STMultiNodeSpec
+    with ImplicitSender
+    with DefaultTimeout {
 
   import UnifiedCausalConsistencyMultiJvmSpec._
 
@@ -215,8 +221,7 @@ class UnifiedCausalConsistencySpec extends RemotingMultiNodeSpec(UnifiedCausalCo
 
         for (i <- 0 until 10) {
           println("> SENDING MESSAGE i=" + i + " from " + self + " to " + myCausalActorA)
-          val causalContext =
-            new Metadata(VersionVector.empty, Map(myCausalActorA -> Map(testActor -> i)))
+          val causalContext = Metadata(VersionVector.empty, Map(myCausalActorA -> Map(testActor -> i)))
 
           myCausalActorA.causalTell(MyCausalMessage(testActor, i), causalContext, testActor)
 
@@ -227,8 +232,10 @@ class UnifiedCausalConsistencySpec extends RemotingMultiNodeSpec(UnifiedCausalCo
       enterBarrier("after")
     }
 
-    "correctly delay causal messages and shared memory" in {
-
+    "send causal message to self" in {
+      val causalContext = Metadata(VersionVector.empty, Map(testActor -> Map(testActor -> 0)))
+      testActor.causalTell(MyCausalMessage(testActor, 42), causalContext, testActor)
+      expectMsg(5.seconds, MyCausalMessage(testActor, 42))
     }
 
   }
