@@ -10,6 +10,7 @@ import akka.pattern.ask
 import akka.util.Timeout
 import org.slf4j.{Logger, LoggerFactory}
 
+import scala.collection.mutable
 import scala.concurrent.Await
 import scala.concurrent.duration.DurationInt
 
@@ -19,6 +20,7 @@ object Transaction {
   final case class Context(replicator: ActorRef, actor: ActorRef, var version: VersionVector = VersionVector.empty)
       extends Serializable {
     val tid: TransactionId = java.util.UUID.randomUUID.toString // TODO: 128 bits can be reduced. eg: Snowflake ?
+    val messages: mutable.Map[ActorRef, mutable.Queue[Any]] = mutable.Map.empty
 
     def get[T <: ReplicatedData](key: Key[T]): Unit = {
       replicator.tell(Get(key, ReadLocal, None, Option(this)), actor)
@@ -35,6 +37,12 @@ object Transaction {
     def update[T <: ReplicatedData](key: Key[T], request: Option[Any] = None)(value: T): Unit = {
       replicator.tell(Update(key, WriteLocal, request, Some(tid))(_ => value), actor)
     }
+
+    def causalTell(msg: Any, to: ActorRef): Unit = {
+      println(">>>> causalTell to=" + to)
+      val q = messages.getOrElse(to, mutable.Queue.empty).enqueue(msg)
+      messages.update(to, q)
+    }
   }
 }
 
@@ -44,7 +52,7 @@ object Transaction {
  * - auto commit at the end of the transaction scope
  */
 final case class Transaction(replicator: ActorRef, actor: ActorRef, operations: (Transaction.Context) => Unit) {
-  import akka.cluster.ddata.Transaction.{ Context, TransactionId }
+  import akka.cluster.ddata.Transaction.{Context, TransactionId}
 
   def apply(actorContext: ActorContext, operations: (Transaction.Context) => Unit): Transaction = {
 //    val system = actorContext.system
@@ -99,7 +107,9 @@ final case class Transaction(replicator: ActorRef, actor: ActorRef, operations: 
 
       Await.result(
         (replicator ? TwoPhaseCommitCommit(context)).mapTo[TwoPhaseCommitCommitResponse], askTimeout.duration) match {
-        case TwoPhaseCommitCommitSuccess(_) => true
+        case TwoPhaseCommitCommitSuccess(_) =>
+          context.messages.clear()
+          true
         case TwoPhaseCommitCommitError(msg, _) =>
           log.error(msg)
           false
@@ -117,6 +127,7 @@ final case class Transaction(replicator: ActorRef, actor: ActorRef, operations: 
 
   def abort(): Unit = {
     replicator ! TwoPhaseCommitAbort(id) // TODO: wait for ACK ?
+    context.messages.clear()
   }
 
 }

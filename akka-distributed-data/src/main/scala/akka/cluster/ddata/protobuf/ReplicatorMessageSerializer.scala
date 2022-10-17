@@ -4,7 +4,7 @@
 
 package akka.cluster.ddata.protobuf
 
-import akka.actor.{Address, CausalMessageWrapper, ExtendedActorSystem, Metadata}
+import akka.actor.{Address, ExtendedActorSystem}
 import akka.annotation.InternalApi
 import akka.cluster.ddata.DurableStore.DurableDataEnvelope
 import akka.cluster.ddata.Key.KeyR
@@ -12,7 +12,7 @@ import akka.cluster.ddata.PruningState.PruningPerformed
 import akka.cluster.ddata.Replicator.Internal._
 import akka.cluster.ddata.Replicator._
 import akka.cluster.ddata.protobuf.msg.{ReplicatorMessages => dm}
-import akka.cluster.ddata.{PruningState, ReplicatedData, VersionVector}
+import akka.cluster.ddata.{CausalMessageWrapper, PruningState, ReplicatedData, VersionVector}
 import akka.cluster.{Member, UniqueAddress}
 import akka.remote.ByteStringUtils
 import akka.serialization.{BaseSerializer, Serialization, SerializerWithStringManifest}
@@ -24,7 +24,7 @@ import java.io.NotSerializableException
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 import scala.annotation.tailrec
-import scala.collection.immutable
+import scala.collection.{immutable, mutable}
 import scala.concurrent.duration.{Duration, FiniteDuration, _}
 
 /**
@@ -337,62 +337,22 @@ class ReplicatorMessageSerializer(val system: ExtendedActorSystem)
 
   private def causalMessageWrapperToProto(msg: CausalMessageWrapper): dm.CausalMessageWrapper = {
     val b = dm.CausalMessageWrapper.newBuilder()
-    b.setMsg(otherMessageToProto(msg.message))
-
-    val m = dm.Metadata.newBuilder().setGss(versionVectorToProto(msg.metadata.gss.asInstanceOf[VersionVector]))
-
-    if (msg.metadata.lastDeliveredSequenceMatrix.nonEmpty) {
-      msg.metadata.lastDeliveredSequenceMatrix.foreach {
-        case (key, data) =>
-//          val m2 = data.toList.map(
-//            x =>
-//              dm.Metadata.Entry1.Entry2
-//                .newBuilder()
-//                .setActor(Serialization.serializedActorPath(x._1))
-//                .setSeqNumber(x._2)
-//                .build())
-
-          val m2 = data.toList.map(
-            x =>
-              dm.Metadata.Entry1.Entry2
-                .newBuilder()
-                .setActor(Serialization.serializedActorPath(x._1))
-                .setSeqNumber(x._2)
-                .build())
-
-          m2.foreach(
-            e =>
-              m.addEntries(
-                dm.Metadata.Entry1.newBuilder().setActor(Serialization.serializedActorPath(key)).addEntries(e).build()))
-
-//          m.addEntries(dm.Metadata.Entry1.newBuilder().setActor(Serialization.serializedActorPath(key)).addAllEntries(m2).build())
-      }
-    }
-
-    b.setMetadata(m)
-    b.setFrom(Serialization.serializedActorPath(msg.from))
-    b.setTo(Serialization.serializedActorPath(msg.to))
+    msg.messages.foreach(m => b.addMsgs(otherMessageToProto(m)))
+    b.setVersion(versionVectorToProto(msg.version))
+    b.setFromNode(uniqueAddressToProto(msg.fromNode))
     b.build()
   }
 
   private def causalMessageWrapperFromBinary(bytes: Array[Byte]): CausalMessageWrapper = {
     val msg = dm.CausalMessageWrapper.parseFrom(decompress(bytes))
 
-    val meta = new Metadata(
-      versionVectorFromProto(msg.getMetadata.getGss),
-      msg.getMetadata.getEntriesList.asScala.iterator
-        .map(
-          e =>
-            resolveActorRef(e.getActor) -> e.getEntriesList.asScala.iterator
-              .map(f => resolveActorRef(f.getActor) -> f.getSeqNumber)
-              .toMap)
-        .toMap)
+    val msgs: mutable.Queue[Any] = mutable.Queue.empty
+    msg.getMsgsList.forEach(m => msgs.enqueue(otherMessageFromProto(m).asInstanceOf[Any]))
 
     new CausalMessageWrapper(
-      otherMessageFromProto(msg.getMsg),
-      meta,
-      resolveActorRef(msg.getFrom),
-      resolveActorRef(msg.getTo))
+      msgs,
+      versionVectorFromProto(msg.getVersion),
+      uniqueAddressFromProto(msg.getFromNode))
   }
 
   private def deltaPropagationToProto(deltaPropagation: DeltaPropagation): dm.DeltaPropagation = {

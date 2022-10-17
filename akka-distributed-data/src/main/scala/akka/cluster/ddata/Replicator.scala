@@ -32,6 +32,10 @@ import scala.concurrent.duration.{FiniteDuration, _}
 import scala.util.control.{NoStackTrace, NonFatal}
 import scala.util.{Failure, Success, Try}
 
+
+class CausalMessageWrapper(var messages: mutable.Queue[Any], var version: VersionVector, var fromNode: UniqueAddress)
+  extends Serializable {}
+
 @ccompatUsedUntil213
 object ReplicatorSettings {
 
@@ -1841,7 +1845,17 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
         req)
     } else {
       triggerSnapshotGossip(Some(trxn.version), Some(snapshotManager.currentTransactions(trxn.tid)._1._2))
-      snapshotManager.commit(trxn.tid)  // TODO: return commitVV
+
+      // increment commitVV if no shared memory writes AND at least 1 causal message
+      val increment = trxn.messages.exists(x => x._2.nonEmpty)
+      val commitVV = snapshotManager.commit(trxn.tid, increment)
+
+
+      // send causal messages
+      trxn.messages.foreach(kv => {
+        println(">>> sending causal messages to=" + kv._1 + ", commitVV=" + commitVV)
+        kv._1.tell(new CausalMessageWrapper(kv._2, commitVV, selfUniqueAddress), trxn.actor)
+      })
 
       replyTo ! TwoPhaseCommitCommitSuccess(req)
     }
@@ -2359,7 +2373,7 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
   }
 
   def triggerSnapshotGossip(version: Option[VersionVector], updatedData: Option[Map[KeyId, DataEnvelope]]): Unit = {
-//    println("=================== triggerSnapshotGossip() version=" + version + ", updatedData=" + updatedData)
+    println("=================== triggerSnapshotGossip() version=" + version + ", updatedData=" + updatedData)
     // broadcast to all known nodes
     allNodes.foreach(address => snapshotGossipTo(address, version, updatedData)) // TODO: can this be better ?
   }

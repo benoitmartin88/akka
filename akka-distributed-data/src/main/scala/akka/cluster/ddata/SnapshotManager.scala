@@ -97,6 +97,7 @@ class SnapshotManager(
       node,
       versionVector,
       globalStableSnapshot)
+    println("SnapshotManager::updateKnownVersionVectors(node=" + node + ", versionVector=" + versionVector + "): GSS=" + globalStableSnapshot)
   }
 
   def updateGlobalStableSnapshot(): Unit = {
@@ -157,7 +158,9 @@ class SnapshotManager(
         localSnapshots.remove(p._1)
       })
 
-    if (newGssData.nonEmpty) {
+//    if (newGssData.nonEmpty) {
+    if (newGssVv != globalStableSnapshot._1) {
+      println(">>>>>>>>> GSS UPDATED !!! newGssVv=" + newGssVv)
       globalStableSnapshot = (newGssVv, newGssData.toMap)
       sendChangeToAllSubscribers(newGssVv) // TODO: check if this is the correct location to call this method !
     }
@@ -249,26 +252,32 @@ class SnapshotManager(
     }
   }
 
-  def commit(tid: Transaction.TransactionId): VersionVector = {
+  def commit(tid: Transaction.TransactionId, forceIncrement: Boolean = false): VersionVector = {
     log.debug("SnapshotManager::commit(tid=[{}])", tid)
 
     val res = currentTransactions.get(tid) match {
       case Some(currentTransaction) =>
         // found transaction
         def currentTransactionSnapshot: Snapshot = currentTransaction._1
-        def increment: Boolean = currentTransaction._2
+        def incr: Boolean = if(forceIncrement) true else currentTransaction._2
         def last: Snapshot = localSnapshots.lastOption match {
           case Some(l) => l
           case None    => globalStableSnapshot
         }
 
+        println(">>>><<<< selfUniqueAddress=" + selfUniqueAddress)
+        println(">>>><<<< last._1=" + last._1)
+
         val commitVv =
-          if (increment) last._1.increment(selfUniqueAddress)
+          if (incr) last._1.increment(selfUniqueAddress)
           else last._1
 
 //        assert(commitVv.compareTo(last._1) == (VersionVector.After | VersionVector.Same))
 
-        if (currentTransactionSnapshot._2.nonEmpty) localSnapshots.update(commitVv, currentTransactionSnapshot._2)
+//        if (currentTransactionSnapshot._2.nonEmpty) localSnapshots.update(commitVv, currentTransactionSnapshot._2)
+        localSnapshots.update(commitVv, currentTransactionSnapshot._2)
+
+//        updateKnownVersionVectors(selfUniqueAddress, commitVv)
         commitVv
       case None => VersionVector.empty // transaction not found
     }

@@ -4,8 +4,9 @@
 
 package akka.cluster.ddata
 
-import akka.actor.{ActorIdentity, ActorRef, Deploy, Identify, Metadata, Props}
+import akka.actor.{ActorIdentity, ActorRef, Deploy, Identify, Props}
 import akka.cluster.Cluster
+import akka.cluster.ddata.Replicator.{GetReplicaCount, ReplicaCount}
 import akka.remote.testconductor.RoleName
 import akka.remote.testkit.{MultiNodeConfig, MultiNodeSpec}
 import akka.remote.transport.ThrottlerTransportAdapter.Direction
@@ -21,18 +22,19 @@ object UnifiedCausalConsistencyMultiJvmSpec extends MultiNodeConfig {
       akka.actor.provider = "cluster"
       akka.actor.allow-java-serialization = true
       akka.remote.artery.enabled = false
+      akka.cluster.distributed-data.gossip-interval = 1s
     """)))
 
   val node1 = role("node1")
   val node2 = role("node2")
   val node3 = role("node3")
 
-  testTransport(on = true)
+  testTransport(on = true) // needed for throttle
 }
 
-class UnifiedCausalConsistencyMultiJvmNode1 extends UnifiedCausalConsistencySpec
-class UnifiedCausalConsistencyMultiJvmNode2 extends UnifiedCausalConsistencySpec
-class UnifiedCausalConsistencyMultiJvmNode3 extends UnifiedCausalConsistencySpec
+class UnifiedCausalConsistencyMultiJvmNode1 extends UnifiedCausalConsistencySpec //(ConfigFactory.parseString("akka.remote.artery.canonical.port = 2553"))
+class UnifiedCausalConsistencyMultiJvmNode2 extends UnifiedCausalConsistencySpec //(ConfigFactory.parseString("akka.remote.artery.canonical.port = 2554"))
+class UnifiedCausalConsistencyMultiJvmNode3 extends UnifiedCausalConsistencySpec //(ConfigFactory.parseString("akka.remote.artery.canonical.port = 2555"))
 
 final case class MyCausalMessage(replyTo: ActorRef, var i: Int) {}
 
@@ -41,10 +43,10 @@ final case class MyNonCausalMessage(replyTo: ActorRef) {}
 final case class Ack(var i: Int) {}
 
 object MyCausalActor {
-  def props(onCausalMsg: (Metadata, MyCausalMessage) => Unit): Props = Props(new MyCausalActor(onCausalMsg))
+  def props(onCausalMsg: (MyCausalMessage) => Unit): Props = Props(new MyCausalActor(onCausalMsg))
 }
 
-final case class MyCausalActor(var onCausalMsg: (Metadata, MyCausalMessage) => Unit) extends CausalActor {
+final case class MyCausalActor(var onCausalMsg: (MyCausalMessage) => Unit) extends CausalActor {
   println(">> MyCausalActor::MyCausalActor()")
 
   /**
@@ -59,17 +61,17 @@ final case class MyCausalActor(var onCausalMsg: (Metadata, MyCausalMessage) => U
       case msg: MyCausalMessage =>
         println("===== MyCausalActor::receive(msg=" + msg + ")")
 //        msg.replyTo ! Ack(msg.i)
-        onCausalMsg(causalContext, msg)
+        onCausalMsg(msg)
     })
   }
 
-  override def onCausalChange(causalContext: Metadata): Unit = {
-    println("MyCausalActor::onCausalChange(causalContext=" + causalContext + ")")
+  override def onCausalChange(gssVV: VersionVector): Unit = {
+    println("MyCausalActor::onCausalChange(gssVV=" + gssVV + ")")
   }
 }
 
 class UnifiedCausalConsistencySpec
-    extends MultiNodeSpec(UnifiedCausalConsistencyMultiJvmSpec)
+    extends MultiNodeSpec(UnifiedCausalConsistencyMultiJvmSpec /*, c => ActorSystem("toto", c.withFallback(conf))*/ )
     with Suite
     with STMultiNodeSpec
     with ImplicitSender
@@ -77,7 +79,7 @@ class UnifiedCausalConsistencySpec
 
   import UnifiedCausalConsistencyMultiJvmSpec._
 
-  override def initialParticipants = 2
+  override def initialParticipants = roles.size
 
   lazy val echo = {
     system.actorSelection(node(node1) / "user" / "echo") ! Identify(None)
@@ -85,7 +87,7 @@ class UnifiedCausalConsistencySpec
   }
 
   val cluster = Cluster(system)
-  implicit val selfUniqueAddress: SelfUniqueAddress = DistributedData(system).selfUniqueAddress
+//  implicit val selfUniqueAddress: SelfUniqueAddress = DistributedData(system).selfUniqueAddress
   val replicator = DistributedData(system).replicator
 
   var afterCounter = 0
@@ -130,7 +132,20 @@ class UnifiedCausalConsistencySpec
 //    }
 
     "correctly delay causal messages" in {
-      enterBarrier("startup")
+      join(node1, node1)
+      join(node2, node1)
+      join(node3, node1)
+
+      runOn(node1, node2, node3) {
+        within(10.seconds) {
+          awaitAssert {
+            replicator ! GetReplicaCount
+            expectMsg(ReplicaCount(3))
+          }
+        }
+      }
+
+      enterBarrier("3-nodes")
 
       var myCausalActorA = ActorRef.noSender
       var myCausalActorB = ActorRef.noSender
@@ -142,9 +157,9 @@ class UnifiedCausalConsistencySpec
         /**
          * ACTOR C
          */
-        system.actorOf(
+        myCausalActorC = system.actorOf(
           MyCausalActor
-            .props((_, msg) => {
+            .props((msg) => {
               arr(msg.i) = arr(msg.i) + 1
 
               if (2 == arr(msg.i)) {
@@ -169,10 +184,14 @@ class UnifiedCausalConsistencySpec
          */
         myCausalActorB = system.actorOf(
           MyCausalActor
-            .props((causalContext, msg) => {
+            .props((msg) => {
               println(msg)
-              myCausalActorC.causalTell(MyCausalMessage(msg.replyTo, msg.i), causalContext, myCausalActorB)
-//              expectMsg(5.seconds, Ack(msg.i))
+
+              new Transaction(replicator, myCausalActorB, (ctx) => {
+                ctx.causalTell(msg, myCausalActorC)
+              }).commit()
+
+//              myCausalActorC.causalTell(MyCausalMessage(msg.replyTo, msg.i), causalContext, myCausalActorB)
             })
             .withDeploy(Deploy.local),
           "MyCausalActorB")
@@ -187,7 +206,9 @@ class UnifiedCausalConsistencySpec
         myCausalActorB = expectMsgType[ActorIdentity](5.seconds).ref.get
 
         myCausalActorC should not be ActorRef.noSender
+        myCausalActorC should not be testActor
         myCausalActorB should not be ActorRef.noSender
+        myCausalActorB should not be testActor
 
         // throttle A to C
         testConductor.throttle(node1, node3, Direction.Send, 1).await
@@ -197,13 +218,17 @@ class UnifiedCausalConsistencySpec
          */
         myCausalActorA = system.actorOf(
           MyCausalActor
-            .props((causalContext, msg) => {
-              println("SENDING MESSAGES !! causalContext.matrix=" + causalContext.lastDeliveredSequenceMatrix)
+            .props((msg) => {
+              println("SENDING MESSAGES !! msg=" + msg)
 
-              myCausalActorC.causalTell(MyCausalMessage(msg.replyTo, msg.i), causalContext, myCausalActorA)
-              myCausalActorB.causalTell(MyCausalMessage(msg.replyTo, msg.i), causalContext, myCausalActorA)
+              new Transaction(replicator, myCausalActorA, (ctx) => {
+                println(">>>>>>>>>>>>>>>>>>>>>>> ctx=" + ctx)
+                ctx.causalTell(msg, myCausalActorC)
+                ctx.causalTell(msg, myCausalActorB)
+              }).commit()
 
-//              msg.replyTo ! Ack(msg.i) // reply to test actor
+//              myCausalActorC.causalTell(MyCausalMessage(msg.replyTo, msg.i), causalContext, myCausalActorA)
+//              myCausalActorB.causalTell(MyCausalMessage(msg.replyTo, msg.i), causalContext, myCausalActorA)
             })
             .withDeploy(Deploy.local),
           "MyCausalActorA")
@@ -221,22 +246,29 @@ class UnifiedCausalConsistencySpec
 
         for (i <- 0 until 10) {
           println("> SENDING MESSAGE i=" + i + " from " + self + " to " + myCausalActorA)
-          val causalContext = Metadata(VersionVector.empty, Map(myCausalActorA -> Map(testActor -> i)))
 
-          myCausalActorA.causalTell(MyCausalMessage(testActor, i), causalContext, testActor)
+//          new Transaction(replicator, self, (ctx) => {
+//            ctx.causalTell(MyCausalMessage(testActor, i), myCausalActorA)
+//          }).commit()
 
-          expectMsgType[Ack](5.seconds).i should be(i)
+          myCausalActorA ! MyCausalMessage(testActor, i)
+
+//          myCausalActorA.causalTell(MyCausalMessage(testActor, i), causalContext, testActor)
+
+          expectMsgType[Ack](10.seconds).i should be(i)
         }
       }
 
       enterBarrier("after")
     }
 
-    "send causal message to self" in {
-      val causalContext = Metadata(VersionVector.empty, Map(testActor -> Map(testActor -> 0)))
-      testActor.causalTell(MyCausalMessage(testActor, 42), causalContext, testActor)
-      expectMsg(5.seconds, MyCausalMessage(testActor, 42))
-    }
+//    "send causal message to self" in {
+//      new Transaction(replicator, testActor, (ctx) => {
+//        ctx.causalTell(MyCausalMessage(testActor, 42), testActor)
+//      }).commit()
+//
+//      expectMsg(5.seconds, MyCausalMessage(testActor, 42))
+//    }
 
   }
 

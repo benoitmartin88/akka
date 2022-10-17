@@ -27,24 +27,6 @@ object ActorRef {
 
 }
 
-case class Metadata(var gss: Any, var lastDeliveredSequenceMatrix: Map[ActorRef, Map[ActorRef, Long]] = Map.empty)
-    extends Serializable {
-
-  def incrementSequence(from: ActorRef, to: ActorRef): Unit = { // TODO: this can be more efficient
-    assert(null != from)
-    assert(null != to)
-    val toMap = lastDeliveredSequenceMatrix.getOrElse(to, Map.empty)
-    val seq = toMap.getOrElse(from, 0L)
-
-    lastDeliveredSequenceMatrix = lastDeliveredSequenceMatrix.updated(to, toMap.updated(from, seq + 1))
-  }
-
-  override def toString: String = "{gss=" + gss + ", matrix=" + lastDeliveredSequenceMatrix + "}"
-}
-
-class CausalMessageWrapper(var message: Any, var metadata: Metadata, var from: ActorRef, var to: ActorRef)
-    extends Serializable {}
-
 /**
  * Immutable and serializable handle to an actor, which may or may not reside
  * on the local host or inside the same [[akka.actor.ActorSystem]]. An ActorRef
@@ -156,24 +138,6 @@ abstract class ActorRef extends java.lang.Comparable[ActorRef] with Serializable
    * <p/>
    */
   def !(message: Any)(implicit sender: ActorRef = Actor.noSender): Unit
-
-  /**
-   * Add meta-data to message (GSS + Sequence matrix)
-   */
-  final def causalTell(msg: Any, causalContext: Metadata, sender: ActorRef): Unit = {
-    // no need for causal if send to self
-    if(this == sender) this.!(msg)(sender)
-    else {
-      causalContext.incrementSequence(sender, this)
-      println("ActorRef::causalTell(causalContext=" + causalContext + ")")
-      val wrappedMessage = new CausalMessageWrapper(
-        msg,
-        causalContext.copy(causalContext.gss, causalContext.lastDeliveredSequenceMatrix),
-        sender,
-        this)
-      this.!(wrappedMessage)(sender)
-    }
-  }
 
   /**
    * Forwards the message and passes the original sender actor as the sender.
