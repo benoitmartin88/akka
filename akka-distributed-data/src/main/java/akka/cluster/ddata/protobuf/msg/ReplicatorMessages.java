@@ -16091,12 +16091,36 @@ public final class ReplicatorMessages {
         int index);
 
     /**
-     * <code>optional sfixed64 toSystemUid = 4;</code>
+     * <code>repeated .akka.cluster.ddata.SnapshotGossip.Entry2 entries2 = 4;</code>
+     */
+    java.util.List<akka.cluster.ddata.protobuf.msg.ReplicatorMessages.SnapshotGossip.Entry2> 
+        getEntries2List();
+    /**
+     * <code>repeated .akka.cluster.ddata.SnapshotGossip.Entry2 entries2 = 4;</code>
+     */
+    akka.cluster.ddata.protobuf.msg.ReplicatorMessages.SnapshotGossip.Entry2 getEntries2(int index);
+    /**
+     * <code>repeated .akka.cluster.ddata.SnapshotGossip.Entry2 entries2 = 4;</code>
+     */
+    int getEntries2Count();
+    /**
+     * <code>repeated .akka.cluster.ddata.SnapshotGossip.Entry2 entries2 = 4;</code>
+     */
+    java.util.List<? extends akka.cluster.ddata.protobuf.msg.ReplicatorMessages.SnapshotGossip.Entry2OrBuilder> 
+        getEntries2OrBuilderList();
+    /**
+     * <code>repeated .akka.cluster.ddata.SnapshotGossip.Entry2 entries2 = 4;</code>
+     */
+    akka.cluster.ddata.protobuf.msg.ReplicatorMessages.SnapshotGossip.Entry2OrBuilder getEntries2OrBuilder(
+        int index);
+
+    /**
+     * <code>optional sfixed64 toSystemUid = 5;</code>
      * @return Whether the toSystemUid field is set.
      */
     boolean hasToSystemUid();
     /**
-     * <code>optional sfixed64 toSystemUid = 4;</code>
+     * <code>optional sfixed64 toSystemUid = 5;</code>
      * @return The toSystemUid.
      */
     long getToSystemUid();
@@ -16115,6 +16139,7 @@ public final class ReplicatorMessages {
     }
     private SnapshotGossip() {
       entries_ = java.util.Collections.emptyList();
+      entries2_ = java.util.Collections.emptyList();
     }
 
     @java.lang.Override
@@ -16183,7 +16208,16 @@ public final class ReplicatorMessages {
                   input.readMessage(akka.cluster.ddata.protobuf.msg.ReplicatorMessages.SnapshotGossip.Entry.PARSER, extensionRegistry));
               break;
             }
-            case 33: {
+            case 34: {
+              if (!((mutable_bitField0_ & 0x00000008) != 0)) {
+                entries2_ = new java.util.ArrayList<akka.cluster.ddata.protobuf.msg.ReplicatorMessages.SnapshotGossip.Entry2>();
+                mutable_bitField0_ |= 0x00000008;
+              }
+              entries2_.add(
+                  input.readMessage(akka.cluster.ddata.protobuf.msg.ReplicatorMessages.SnapshotGossip.Entry2.PARSER, extensionRegistry));
+              break;
+            }
+            case 41: {
               bitField0_ |= 0x00000004;
               toSystemUid_ = input.readSFixed64();
               break;
@@ -16205,6 +16239,9 @@ public final class ReplicatorMessages {
       } finally {
         if (((mutable_bitField0_ & 0x00000004) != 0)) {
           entries_ = java.util.Collections.unmodifiableList(entries_);
+        }
+        if (((mutable_bitField0_ & 0x00000008) != 0)) {
+          entries2_ = java.util.Collections.unmodifiableList(entries2_);
         }
         this.unknownFields = unknownFields.build();
         makeExtensionsImmutable();
@@ -17052,6 +17089,994 @@ public final class ReplicatorMessages {
 
     }
 
+    public interface Entry2OrBuilder extends
+        // @@protoc_insertion_point(interface_extends:akka.cluster.ddata.SnapshotGossip.Entry2)
+        akka.protobufv3.internal.MessageOrBuilder {
+
+      /**
+       * <code>required string to = 1;</code>
+       * @return Whether the to field is set.
+       */
+      boolean hasTo();
+      /**
+       * <code>required string to = 1;</code>
+       * @return The to.
+       */
+      java.lang.String getTo();
+      /**
+       * <code>required string to = 1;</code>
+       * @return The bytes for to.
+       */
+      akka.protobufv3.internal.ByteString
+          getToBytes();
+
+      /**
+       * <code>repeated .akka.cluster.ddata.OtherMessage messages = 2;</code>
+       */
+      java.util.List<akka.cluster.ddata.protobuf.msg.ReplicatorMessages.OtherMessage> 
+          getMessagesList();
+      /**
+       * <code>repeated .akka.cluster.ddata.OtherMessage messages = 2;</code>
+       */
+      akka.cluster.ddata.protobuf.msg.ReplicatorMessages.OtherMessage getMessages(int index);
+      /**
+       * <code>repeated .akka.cluster.ddata.OtherMessage messages = 2;</code>
+       */
+      int getMessagesCount();
+      /**
+       * <code>repeated .akka.cluster.ddata.OtherMessage messages = 2;</code>
+       */
+      java.util.List<? extends akka.cluster.ddata.protobuf.msg.ReplicatorMessages.OtherMessageOrBuilder> 
+          getMessagesOrBuilderList();
+      /**
+       * <code>repeated .akka.cluster.ddata.OtherMessage messages = 2;</code>
+       */
+      akka.cluster.ddata.protobuf.msg.ReplicatorMessages.OtherMessageOrBuilder getMessagesOrBuilder(
+          int index);
+    }
+    /**
+     * Protobuf type {@code akka.cluster.ddata.SnapshotGossip.Entry2}
+     */
+    public  static final class Entry2 extends
+        akka.protobufv3.internal.GeneratedMessageV3 implements
+        // @@protoc_insertion_point(message_implements:akka.cluster.ddata.SnapshotGossip.Entry2)
+        Entry2OrBuilder {
+    private static final long serialVersionUID = 0L;
+      // Use Entry2.newBuilder() to construct.
+      private Entry2(akka.protobufv3.internal.GeneratedMessageV3.Builder<?> builder) {
+        super(builder);
+      }
+      private Entry2() {
+        to_ = "";
+        messages_ = java.util.Collections.emptyList();
+      }
+
+      @java.lang.Override
+      @SuppressWarnings({"unused"})
+      protected java.lang.Object newInstance(
+          akka.protobufv3.internal.GeneratedMessageV3.UnusedPrivateParameter unused) {
+        return new Entry2();
+      }
+
+      @java.lang.Override
+      public final akka.protobufv3.internal.UnknownFieldSet
+      getUnknownFields() {
+        return this.unknownFields;
+      }
+      private Entry2(
+          akka.protobufv3.internal.CodedInputStream input,
+          akka.protobufv3.internal.ExtensionRegistryLite extensionRegistry)
+          throws akka.protobufv3.internal.InvalidProtocolBufferException {
+        this();
+        if (extensionRegistry == null) {
+          throw new java.lang.NullPointerException();
+        }
+        int mutable_bitField0_ = 0;
+        akka.protobufv3.internal.UnknownFieldSet.Builder unknownFields =
+            akka.protobufv3.internal.UnknownFieldSet.newBuilder();
+        try {
+          boolean done = false;
+          while (!done) {
+            int tag = input.readTag();
+            switch (tag) {
+              case 0:
+                done = true;
+                break;
+              case 10: {
+                akka.protobufv3.internal.ByteString bs = input.readBytes();
+                bitField0_ |= 0x00000001;
+                to_ = bs;
+                break;
+              }
+              case 18: {
+                if (!((mutable_bitField0_ & 0x00000002) != 0)) {
+                  messages_ = new java.util.ArrayList<akka.cluster.ddata.protobuf.msg.ReplicatorMessages.OtherMessage>();
+                  mutable_bitField0_ |= 0x00000002;
+                }
+                messages_.add(
+                    input.readMessage(akka.cluster.ddata.protobuf.msg.ReplicatorMessages.OtherMessage.PARSER, extensionRegistry));
+                break;
+              }
+              default: {
+                if (!parseUnknownField(
+                    input, unknownFields, extensionRegistry, tag)) {
+                  done = true;
+                }
+                break;
+              }
+            }
+          }
+        } catch (akka.protobufv3.internal.InvalidProtocolBufferException e) {
+          throw e.setUnfinishedMessage(this);
+        } catch (java.io.IOException e) {
+          throw new akka.protobufv3.internal.InvalidProtocolBufferException(
+              e).setUnfinishedMessage(this);
+        } finally {
+          if (((mutable_bitField0_ & 0x00000002) != 0)) {
+            messages_ = java.util.Collections.unmodifiableList(messages_);
+          }
+          this.unknownFields = unknownFields.build();
+          makeExtensionsImmutable();
+        }
+      }
+      public static final akka.protobufv3.internal.Descriptors.Descriptor
+          getDescriptor() {
+        return akka.cluster.ddata.protobuf.msg.ReplicatorMessages.internal_static_akka_cluster_ddata_SnapshotGossip_Entry2_descriptor;
+      }
+
+      @java.lang.Override
+      protected akka.protobufv3.internal.GeneratedMessageV3.FieldAccessorTable
+          internalGetFieldAccessorTable() {
+        return akka.cluster.ddata.protobuf.msg.ReplicatorMessages.internal_static_akka_cluster_ddata_SnapshotGossip_Entry2_fieldAccessorTable
+            .ensureFieldAccessorsInitialized(
+                akka.cluster.ddata.protobuf.msg.ReplicatorMessages.SnapshotGossip.Entry2.class, akka.cluster.ddata.protobuf.msg.ReplicatorMessages.SnapshotGossip.Entry2.Builder.class);
+      }
+
+      private int bitField0_;
+      public static final int TO_FIELD_NUMBER = 1;
+      private volatile java.lang.Object to_;
+      /**
+       * <code>required string to = 1;</code>
+       * @return Whether the to field is set.
+       */
+      public boolean hasTo() {
+        return ((bitField0_ & 0x00000001) != 0);
+      }
+      /**
+       * <code>required string to = 1;</code>
+       * @return The to.
+       */
+      public java.lang.String getTo() {
+        java.lang.Object ref = to_;
+        if (ref instanceof java.lang.String) {
+          return (java.lang.String) ref;
+        } else {
+          akka.protobufv3.internal.ByteString bs = 
+              (akka.protobufv3.internal.ByteString) ref;
+          java.lang.String s = bs.toStringUtf8();
+          if (bs.isValidUtf8()) {
+            to_ = s;
+          }
+          return s;
+        }
+      }
+      /**
+       * <code>required string to = 1;</code>
+       * @return The bytes for to.
+       */
+      public akka.protobufv3.internal.ByteString
+          getToBytes() {
+        java.lang.Object ref = to_;
+        if (ref instanceof java.lang.String) {
+          akka.protobufv3.internal.ByteString b = 
+              akka.protobufv3.internal.ByteString.copyFromUtf8(
+                  (java.lang.String) ref);
+          to_ = b;
+          return b;
+        } else {
+          return (akka.protobufv3.internal.ByteString) ref;
+        }
+      }
+
+      public static final int MESSAGES_FIELD_NUMBER = 2;
+      private java.util.List<akka.cluster.ddata.protobuf.msg.ReplicatorMessages.OtherMessage> messages_;
+      /**
+       * <code>repeated .akka.cluster.ddata.OtherMessage messages = 2;</code>
+       */
+      public java.util.List<akka.cluster.ddata.protobuf.msg.ReplicatorMessages.OtherMessage> getMessagesList() {
+        return messages_;
+      }
+      /**
+       * <code>repeated .akka.cluster.ddata.OtherMessage messages = 2;</code>
+       */
+      public java.util.List<? extends akka.cluster.ddata.protobuf.msg.ReplicatorMessages.OtherMessageOrBuilder> 
+          getMessagesOrBuilderList() {
+        return messages_;
+      }
+      /**
+       * <code>repeated .akka.cluster.ddata.OtherMessage messages = 2;</code>
+       */
+      public int getMessagesCount() {
+        return messages_.size();
+      }
+      /**
+       * <code>repeated .akka.cluster.ddata.OtherMessage messages = 2;</code>
+       */
+      public akka.cluster.ddata.protobuf.msg.ReplicatorMessages.OtherMessage getMessages(int index) {
+        return messages_.get(index);
+      }
+      /**
+       * <code>repeated .akka.cluster.ddata.OtherMessage messages = 2;</code>
+       */
+      public akka.cluster.ddata.protobuf.msg.ReplicatorMessages.OtherMessageOrBuilder getMessagesOrBuilder(
+          int index) {
+        return messages_.get(index);
+      }
+
+      private byte memoizedIsInitialized = -1;
+      @java.lang.Override
+      public final boolean isInitialized() {
+        byte isInitialized = memoizedIsInitialized;
+        if (isInitialized == 1) return true;
+        if (isInitialized == 0) return false;
+
+        if (!hasTo()) {
+          memoizedIsInitialized = 0;
+          return false;
+        }
+        for (int i = 0; i < getMessagesCount(); i++) {
+          if (!getMessages(i).isInitialized()) {
+            memoizedIsInitialized = 0;
+            return false;
+          }
+        }
+        memoizedIsInitialized = 1;
+        return true;
+      }
+
+      @java.lang.Override
+      public void writeTo(akka.protobufv3.internal.CodedOutputStream output)
+                          throws java.io.IOException {
+        if (((bitField0_ & 0x00000001) != 0)) {
+          akka.protobufv3.internal.GeneratedMessageV3.writeString(output, 1, to_);
+        }
+        for (int i = 0; i < messages_.size(); i++) {
+          output.writeMessage(2, messages_.get(i));
+        }
+        unknownFields.writeTo(output);
+      }
+
+      @java.lang.Override
+      public int getSerializedSize() {
+        int size = memoizedSize;
+        if (size != -1) return size;
+
+        size = 0;
+        if (((bitField0_ & 0x00000001) != 0)) {
+          size += akka.protobufv3.internal.GeneratedMessageV3.computeStringSize(1, to_);
+        }
+        for (int i = 0; i < messages_.size(); i++) {
+          size += akka.protobufv3.internal.CodedOutputStream
+            .computeMessageSize(2, messages_.get(i));
+        }
+        size += unknownFields.getSerializedSize();
+        memoizedSize = size;
+        return size;
+      }
+
+      @java.lang.Override
+      public boolean equals(final java.lang.Object obj) {
+        if (obj == this) {
+         return true;
+        }
+        if (!(obj instanceof akka.cluster.ddata.protobuf.msg.ReplicatorMessages.SnapshotGossip.Entry2)) {
+          return super.equals(obj);
+        }
+        akka.cluster.ddata.protobuf.msg.ReplicatorMessages.SnapshotGossip.Entry2 other = (akka.cluster.ddata.protobuf.msg.ReplicatorMessages.SnapshotGossip.Entry2) obj;
+
+        if (hasTo() != other.hasTo()) return false;
+        if (hasTo()) {
+          if (!getTo()
+              .equals(other.getTo())) return false;
+        }
+        if (!getMessagesList()
+            .equals(other.getMessagesList())) return false;
+        if (!unknownFields.equals(other.unknownFields)) return false;
+        return true;
+      }
+
+      @java.lang.Override
+      public int hashCode() {
+        if (memoizedHashCode != 0) {
+          return memoizedHashCode;
+        }
+        int hash = 41;
+        hash = (19 * hash) + getDescriptor().hashCode();
+        if (hasTo()) {
+          hash = (37 * hash) + TO_FIELD_NUMBER;
+          hash = (53 * hash) + getTo().hashCode();
+        }
+        if (getMessagesCount() > 0) {
+          hash = (37 * hash) + MESSAGES_FIELD_NUMBER;
+          hash = (53 * hash) + getMessagesList().hashCode();
+        }
+        hash = (29 * hash) + unknownFields.hashCode();
+        memoizedHashCode = hash;
+        return hash;
+      }
+
+      public static akka.cluster.ddata.protobuf.msg.ReplicatorMessages.SnapshotGossip.Entry2 parseFrom(
+          java.nio.ByteBuffer data)
+          throws akka.protobufv3.internal.InvalidProtocolBufferException {
+        return PARSER.parseFrom(data);
+      }
+      public static akka.cluster.ddata.protobuf.msg.ReplicatorMessages.SnapshotGossip.Entry2 parseFrom(
+          java.nio.ByteBuffer data,
+          akka.protobufv3.internal.ExtensionRegistryLite extensionRegistry)
+          throws akka.protobufv3.internal.InvalidProtocolBufferException {
+        return PARSER.parseFrom(data, extensionRegistry);
+      }
+      public static akka.cluster.ddata.protobuf.msg.ReplicatorMessages.SnapshotGossip.Entry2 parseFrom(
+          akka.protobufv3.internal.ByteString data)
+          throws akka.protobufv3.internal.InvalidProtocolBufferException {
+        return PARSER.parseFrom(data);
+      }
+      public static akka.cluster.ddata.protobuf.msg.ReplicatorMessages.SnapshotGossip.Entry2 parseFrom(
+          akka.protobufv3.internal.ByteString data,
+          akka.protobufv3.internal.ExtensionRegistryLite extensionRegistry)
+          throws akka.protobufv3.internal.InvalidProtocolBufferException {
+        return PARSER.parseFrom(data, extensionRegistry);
+      }
+      public static akka.cluster.ddata.protobuf.msg.ReplicatorMessages.SnapshotGossip.Entry2 parseFrom(byte[] data)
+          throws akka.protobufv3.internal.InvalidProtocolBufferException {
+        return PARSER.parseFrom(data);
+      }
+      public static akka.cluster.ddata.protobuf.msg.ReplicatorMessages.SnapshotGossip.Entry2 parseFrom(
+          byte[] data,
+          akka.protobufv3.internal.ExtensionRegistryLite extensionRegistry)
+          throws akka.protobufv3.internal.InvalidProtocolBufferException {
+        return PARSER.parseFrom(data, extensionRegistry);
+      }
+      public static akka.cluster.ddata.protobuf.msg.ReplicatorMessages.SnapshotGossip.Entry2 parseFrom(java.io.InputStream input)
+          throws java.io.IOException {
+        return akka.protobufv3.internal.GeneratedMessageV3
+            .parseWithIOException(PARSER, input);
+      }
+      public static akka.cluster.ddata.protobuf.msg.ReplicatorMessages.SnapshotGossip.Entry2 parseFrom(
+          java.io.InputStream input,
+          akka.protobufv3.internal.ExtensionRegistryLite extensionRegistry)
+          throws java.io.IOException {
+        return akka.protobufv3.internal.GeneratedMessageV3
+            .parseWithIOException(PARSER, input, extensionRegistry);
+      }
+      public static akka.cluster.ddata.protobuf.msg.ReplicatorMessages.SnapshotGossip.Entry2 parseDelimitedFrom(java.io.InputStream input)
+          throws java.io.IOException {
+        return akka.protobufv3.internal.GeneratedMessageV3
+            .parseDelimitedWithIOException(PARSER, input);
+      }
+      public static akka.cluster.ddata.protobuf.msg.ReplicatorMessages.SnapshotGossip.Entry2 parseDelimitedFrom(
+          java.io.InputStream input,
+          akka.protobufv3.internal.ExtensionRegistryLite extensionRegistry)
+          throws java.io.IOException {
+        return akka.protobufv3.internal.GeneratedMessageV3
+            .parseDelimitedWithIOException(PARSER, input, extensionRegistry);
+      }
+      public static akka.cluster.ddata.protobuf.msg.ReplicatorMessages.SnapshotGossip.Entry2 parseFrom(
+          akka.protobufv3.internal.CodedInputStream input)
+          throws java.io.IOException {
+        return akka.protobufv3.internal.GeneratedMessageV3
+            .parseWithIOException(PARSER, input);
+      }
+      public static akka.cluster.ddata.protobuf.msg.ReplicatorMessages.SnapshotGossip.Entry2 parseFrom(
+          akka.protobufv3.internal.CodedInputStream input,
+          akka.protobufv3.internal.ExtensionRegistryLite extensionRegistry)
+          throws java.io.IOException {
+        return akka.protobufv3.internal.GeneratedMessageV3
+            .parseWithIOException(PARSER, input, extensionRegistry);
+      }
+
+      @java.lang.Override
+      public Builder newBuilderForType() { return newBuilder(); }
+      public static Builder newBuilder() {
+        return DEFAULT_INSTANCE.toBuilder();
+      }
+      public static Builder newBuilder(akka.cluster.ddata.protobuf.msg.ReplicatorMessages.SnapshotGossip.Entry2 prototype) {
+        return DEFAULT_INSTANCE.toBuilder().mergeFrom(prototype);
+      }
+      @java.lang.Override
+      public Builder toBuilder() {
+        return this == DEFAULT_INSTANCE
+            ? new Builder() : new Builder().mergeFrom(this);
+      }
+
+      @java.lang.Override
+      protected Builder newBuilderForType(
+          akka.protobufv3.internal.GeneratedMessageV3.BuilderParent parent) {
+        Builder builder = new Builder(parent);
+        return builder;
+      }
+      /**
+       * Protobuf type {@code akka.cluster.ddata.SnapshotGossip.Entry2}
+       */
+      public static final class Builder extends
+          akka.protobufv3.internal.GeneratedMessageV3.Builder<Builder> implements
+          // @@protoc_insertion_point(builder_implements:akka.cluster.ddata.SnapshotGossip.Entry2)
+          akka.cluster.ddata.protobuf.msg.ReplicatorMessages.SnapshotGossip.Entry2OrBuilder {
+        public static final akka.protobufv3.internal.Descriptors.Descriptor
+            getDescriptor() {
+          return akka.cluster.ddata.protobuf.msg.ReplicatorMessages.internal_static_akka_cluster_ddata_SnapshotGossip_Entry2_descriptor;
+        }
+
+        @java.lang.Override
+        protected akka.protobufv3.internal.GeneratedMessageV3.FieldAccessorTable
+            internalGetFieldAccessorTable() {
+          return akka.cluster.ddata.protobuf.msg.ReplicatorMessages.internal_static_akka_cluster_ddata_SnapshotGossip_Entry2_fieldAccessorTable
+              .ensureFieldAccessorsInitialized(
+                  akka.cluster.ddata.protobuf.msg.ReplicatorMessages.SnapshotGossip.Entry2.class, akka.cluster.ddata.protobuf.msg.ReplicatorMessages.SnapshotGossip.Entry2.Builder.class);
+        }
+
+        // Construct using akka.cluster.ddata.protobuf.msg.ReplicatorMessages.SnapshotGossip.Entry2.newBuilder()
+        private Builder() {
+          maybeForceBuilderInitialization();
+        }
+
+        private Builder(
+            akka.protobufv3.internal.GeneratedMessageV3.BuilderParent parent) {
+          super(parent);
+          maybeForceBuilderInitialization();
+        }
+        private void maybeForceBuilderInitialization() {
+          if (akka.protobufv3.internal.GeneratedMessageV3
+                  .alwaysUseFieldBuilders) {
+            getMessagesFieldBuilder();
+          }
+        }
+        @java.lang.Override
+        public Builder clear() {
+          super.clear();
+          to_ = "";
+          bitField0_ = (bitField0_ & ~0x00000001);
+          if (messagesBuilder_ == null) {
+            messages_ = java.util.Collections.emptyList();
+            bitField0_ = (bitField0_ & ~0x00000002);
+          } else {
+            messagesBuilder_.clear();
+          }
+          return this;
+        }
+
+        @java.lang.Override
+        public akka.protobufv3.internal.Descriptors.Descriptor
+            getDescriptorForType() {
+          return akka.cluster.ddata.protobuf.msg.ReplicatorMessages.internal_static_akka_cluster_ddata_SnapshotGossip_Entry2_descriptor;
+        }
+
+        @java.lang.Override
+        public akka.cluster.ddata.protobuf.msg.ReplicatorMessages.SnapshotGossip.Entry2 getDefaultInstanceForType() {
+          return akka.cluster.ddata.protobuf.msg.ReplicatorMessages.SnapshotGossip.Entry2.getDefaultInstance();
+        }
+
+        @java.lang.Override
+        public akka.cluster.ddata.protobuf.msg.ReplicatorMessages.SnapshotGossip.Entry2 build() {
+          akka.cluster.ddata.protobuf.msg.ReplicatorMessages.SnapshotGossip.Entry2 result = buildPartial();
+          if (!result.isInitialized()) {
+            throw newUninitializedMessageException(result);
+          }
+          return result;
+        }
+
+        @java.lang.Override
+        public akka.cluster.ddata.protobuf.msg.ReplicatorMessages.SnapshotGossip.Entry2 buildPartial() {
+          akka.cluster.ddata.protobuf.msg.ReplicatorMessages.SnapshotGossip.Entry2 result = new akka.cluster.ddata.protobuf.msg.ReplicatorMessages.SnapshotGossip.Entry2(this);
+          int from_bitField0_ = bitField0_;
+          int to_bitField0_ = 0;
+          if (((from_bitField0_ & 0x00000001) != 0)) {
+            to_bitField0_ |= 0x00000001;
+          }
+          result.to_ = to_;
+          if (messagesBuilder_ == null) {
+            if (((bitField0_ & 0x00000002) != 0)) {
+              messages_ = java.util.Collections.unmodifiableList(messages_);
+              bitField0_ = (bitField0_ & ~0x00000002);
+            }
+            result.messages_ = messages_;
+          } else {
+            result.messages_ = messagesBuilder_.build();
+          }
+          result.bitField0_ = to_bitField0_;
+          onBuilt();
+          return result;
+        }
+
+        @java.lang.Override
+        public Builder clone() {
+          return super.clone();
+        }
+        @java.lang.Override
+        public Builder setField(
+            akka.protobufv3.internal.Descriptors.FieldDescriptor field,
+            java.lang.Object value) {
+          return super.setField(field, value);
+        }
+        @java.lang.Override
+        public Builder clearField(
+            akka.protobufv3.internal.Descriptors.FieldDescriptor field) {
+          return super.clearField(field);
+        }
+        @java.lang.Override
+        public Builder clearOneof(
+            akka.protobufv3.internal.Descriptors.OneofDescriptor oneof) {
+          return super.clearOneof(oneof);
+        }
+        @java.lang.Override
+        public Builder setRepeatedField(
+            akka.protobufv3.internal.Descriptors.FieldDescriptor field,
+            int index, java.lang.Object value) {
+          return super.setRepeatedField(field, index, value);
+        }
+        @java.lang.Override
+        public Builder addRepeatedField(
+            akka.protobufv3.internal.Descriptors.FieldDescriptor field,
+            java.lang.Object value) {
+          return super.addRepeatedField(field, value);
+        }
+        @java.lang.Override
+        public Builder mergeFrom(akka.protobufv3.internal.Message other) {
+          if (other instanceof akka.cluster.ddata.protobuf.msg.ReplicatorMessages.SnapshotGossip.Entry2) {
+            return mergeFrom((akka.cluster.ddata.protobuf.msg.ReplicatorMessages.SnapshotGossip.Entry2)other);
+          } else {
+            super.mergeFrom(other);
+            return this;
+          }
+        }
+
+        public Builder mergeFrom(akka.cluster.ddata.protobuf.msg.ReplicatorMessages.SnapshotGossip.Entry2 other) {
+          if (other == akka.cluster.ddata.protobuf.msg.ReplicatorMessages.SnapshotGossip.Entry2.getDefaultInstance()) return this;
+          if (other.hasTo()) {
+            bitField0_ |= 0x00000001;
+            to_ = other.to_;
+            onChanged();
+          }
+          if (messagesBuilder_ == null) {
+            if (!other.messages_.isEmpty()) {
+              if (messages_.isEmpty()) {
+                messages_ = other.messages_;
+                bitField0_ = (bitField0_ & ~0x00000002);
+              } else {
+                ensureMessagesIsMutable();
+                messages_.addAll(other.messages_);
+              }
+              onChanged();
+            }
+          } else {
+            if (!other.messages_.isEmpty()) {
+              if (messagesBuilder_.isEmpty()) {
+                messagesBuilder_.dispose();
+                messagesBuilder_ = null;
+                messages_ = other.messages_;
+                bitField0_ = (bitField0_ & ~0x00000002);
+                messagesBuilder_ = 
+                  akka.protobufv3.internal.GeneratedMessageV3.alwaysUseFieldBuilders ?
+                     getMessagesFieldBuilder() : null;
+              } else {
+                messagesBuilder_.addAllMessages(other.messages_);
+              }
+            }
+          }
+          this.mergeUnknownFields(other.unknownFields);
+          onChanged();
+          return this;
+        }
+
+        @java.lang.Override
+        public final boolean isInitialized() {
+          if (!hasTo()) {
+            return false;
+          }
+          for (int i = 0; i < getMessagesCount(); i++) {
+            if (!getMessages(i).isInitialized()) {
+              return false;
+            }
+          }
+          return true;
+        }
+
+        @java.lang.Override
+        public Builder mergeFrom(
+            akka.protobufv3.internal.CodedInputStream input,
+            akka.protobufv3.internal.ExtensionRegistryLite extensionRegistry)
+            throws java.io.IOException {
+          akka.cluster.ddata.protobuf.msg.ReplicatorMessages.SnapshotGossip.Entry2 parsedMessage = null;
+          try {
+            parsedMessage = PARSER.parsePartialFrom(input, extensionRegistry);
+          } catch (akka.protobufv3.internal.InvalidProtocolBufferException e) {
+            parsedMessage = (akka.cluster.ddata.protobuf.msg.ReplicatorMessages.SnapshotGossip.Entry2) e.getUnfinishedMessage();
+            throw e.unwrapIOException();
+          } finally {
+            if (parsedMessage != null) {
+              mergeFrom(parsedMessage);
+            }
+          }
+          return this;
+        }
+        private int bitField0_;
+
+        private java.lang.Object to_ = "";
+        /**
+         * <code>required string to = 1;</code>
+         * @return Whether the to field is set.
+         */
+        public boolean hasTo() {
+          return ((bitField0_ & 0x00000001) != 0);
+        }
+        /**
+         * <code>required string to = 1;</code>
+         * @return The to.
+         */
+        public java.lang.String getTo() {
+          java.lang.Object ref = to_;
+          if (!(ref instanceof java.lang.String)) {
+            akka.protobufv3.internal.ByteString bs =
+                (akka.protobufv3.internal.ByteString) ref;
+            java.lang.String s = bs.toStringUtf8();
+            if (bs.isValidUtf8()) {
+              to_ = s;
+            }
+            return s;
+          } else {
+            return (java.lang.String) ref;
+          }
+        }
+        /**
+         * <code>required string to = 1;</code>
+         * @return The bytes for to.
+         */
+        public akka.protobufv3.internal.ByteString
+            getToBytes() {
+          java.lang.Object ref = to_;
+          if (ref instanceof String) {
+            akka.protobufv3.internal.ByteString b = 
+                akka.protobufv3.internal.ByteString.copyFromUtf8(
+                    (java.lang.String) ref);
+            to_ = b;
+            return b;
+          } else {
+            return (akka.protobufv3.internal.ByteString) ref;
+          }
+        }
+        /**
+         * <code>required string to = 1;</code>
+         * @param value The to to set.
+         * @return This builder for chaining.
+         */
+        public Builder setTo(
+            java.lang.String value) {
+          if (value == null) {
+    throw new NullPointerException();
+  }
+  bitField0_ |= 0x00000001;
+          to_ = value;
+          onChanged();
+          return this;
+        }
+        /**
+         * <code>required string to = 1;</code>
+         * @return This builder for chaining.
+         */
+        public Builder clearTo() {
+          bitField0_ = (bitField0_ & ~0x00000001);
+          to_ = getDefaultInstance().getTo();
+          onChanged();
+          return this;
+        }
+        /**
+         * <code>required string to = 1;</code>
+         * @param value The bytes for to to set.
+         * @return This builder for chaining.
+         */
+        public Builder setToBytes(
+            akka.protobufv3.internal.ByteString value) {
+          if (value == null) {
+    throw new NullPointerException();
+  }
+  bitField0_ |= 0x00000001;
+          to_ = value;
+          onChanged();
+          return this;
+        }
+
+        private java.util.List<akka.cluster.ddata.protobuf.msg.ReplicatorMessages.OtherMessage> messages_ =
+          java.util.Collections.emptyList();
+        private void ensureMessagesIsMutable() {
+          if (!((bitField0_ & 0x00000002) != 0)) {
+            messages_ = new java.util.ArrayList<akka.cluster.ddata.protobuf.msg.ReplicatorMessages.OtherMessage>(messages_);
+            bitField0_ |= 0x00000002;
+           }
+        }
+
+        private akka.protobufv3.internal.RepeatedFieldBuilderV3<
+            akka.cluster.ddata.protobuf.msg.ReplicatorMessages.OtherMessage, akka.cluster.ddata.protobuf.msg.ReplicatorMessages.OtherMessage.Builder, akka.cluster.ddata.protobuf.msg.ReplicatorMessages.OtherMessageOrBuilder> messagesBuilder_;
+
+        /**
+         * <code>repeated .akka.cluster.ddata.OtherMessage messages = 2;</code>
+         */
+        public java.util.List<akka.cluster.ddata.protobuf.msg.ReplicatorMessages.OtherMessage> getMessagesList() {
+          if (messagesBuilder_ == null) {
+            return java.util.Collections.unmodifiableList(messages_);
+          } else {
+            return messagesBuilder_.getMessageList();
+          }
+        }
+        /**
+         * <code>repeated .akka.cluster.ddata.OtherMessage messages = 2;</code>
+         */
+        public int getMessagesCount() {
+          if (messagesBuilder_ == null) {
+            return messages_.size();
+          } else {
+            return messagesBuilder_.getCount();
+          }
+        }
+        /**
+         * <code>repeated .akka.cluster.ddata.OtherMessage messages = 2;</code>
+         */
+        public akka.cluster.ddata.protobuf.msg.ReplicatorMessages.OtherMessage getMessages(int index) {
+          if (messagesBuilder_ == null) {
+            return messages_.get(index);
+          } else {
+            return messagesBuilder_.getMessage(index);
+          }
+        }
+        /**
+         * <code>repeated .akka.cluster.ddata.OtherMessage messages = 2;</code>
+         */
+        public Builder setMessages(
+            int index, akka.cluster.ddata.protobuf.msg.ReplicatorMessages.OtherMessage value) {
+          if (messagesBuilder_ == null) {
+            if (value == null) {
+              throw new NullPointerException();
+            }
+            ensureMessagesIsMutable();
+            messages_.set(index, value);
+            onChanged();
+          } else {
+            messagesBuilder_.setMessage(index, value);
+          }
+          return this;
+        }
+        /**
+         * <code>repeated .akka.cluster.ddata.OtherMessage messages = 2;</code>
+         */
+        public Builder setMessages(
+            int index, akka.cluster.ddata.protobuf.msg.ReplicatorMessages.OtherMessage.Builder builderForValue) {
+          if (messagesBuilder_ == null) {
+            ensureMessagesIsMutable();
+            messages_.set(index, builderForValue.build());
+            onChanged();
+          } else {
+            messagesBuilder_.setMessage(index, builderForValue.build());
+          }
+          return this;
+        }
+        /**
+         * <code>repeated .akka.cluster.ddata.OtherMessage messages = 2;</code>
+         */
+        public Builder addMessages(akka.cluster.ddata.protobuf.msg.ReplicatorMessages.OtherMessage value) {
+          if (messagesBuilder_ == null) {
+            if (value == null) {
+              throw new NullPointerException();
+            }
+            ensureMessagesIsMutable();
+            messages_.add(value);
+            onChanged();
+          } else {
+            messagesBuilder_.addMessage(value);
+          }
+          return this;
+        }
+        /**
+         * <code>repeated .akka.cluster.ddata.OtherMessage messages = 2;</code>
+         */
+        public Builder addMessages(
+            int index, akka.cluster.ddata.protobuf.msg.ReplicatorMessages.OtherMessage value) {
+          if (messagesBuilder_ == null) {
+            if (value == null) {
+              throw new NullPointerException();
+            }
+            ensureMessagesIsMutable();
+            messages_.add(index, value);
+            onChanged();
+          } else {
+            messagesBuilder_.addMessage(index, value);
+          }
+          return this;
+        }
+        /**
+         * <code>repeated .akka.cluster.ddata.OtherMessage messages = 2;</code>
+         */
+        public Builder addMessages(
+            akka.cluster.ddata.protobuf.msg.ReplicatorMessages.OtherMessage.Builder builderForValue) {
+          if (messagesBuilder_ == null) {
+            ensureMessagesIsMutable();
+            messages_.add(builderForValue.build());
+            onChanged();
+          } else {
+            messagesBuilder_.addMessage(builderForValue.build());
+          }
+          return this;
+        }
+        /**
+         * <code>repeated .akka.cluster.ddata.OtherMessage messages = 2;</code>
+         */
+        public Builder addMessages(
+            int index, akka.cluster.ddata.protobuf.msg.ReplicatorMessages.OtherMessage.Builder builderForValue) {
+          if (messagesBuilder_ == null) {
+            ensureMessagesIsMutable();
+            messages_.add(index, builderForValue.build());
+            onChanged();
+          } else {
+            messagesBuilder_.addMessage(index, builderForValue.build());
+          }
+          return this;
+        }
+        /**
+         * <code>repeated .akka.cluster.ddata.OtherMessage messages = 2;</code>
+         */
+        public Builder addAllMessages(
+            java.lang.Iterable<? extends akka.cluster.ddata.protobuf.msg.ReplicatorMessages.OtherMessage> values) {
+          if (messagesBuilder_ == null) {
+            ensureMessagesIsMutable();
+            akka.protobufv3.internal.AbstractMessageLite.Builder.addAll(
+                values, messages_);
+            onChanged();
+          } else {
+            messagesBuilder_.addAllMessages(values);
+          }
+          return this;
+        }
+        /**
+         * <code>repeated .akka.cluster.ddata.OtherMessage messages = 2;</code>
+         */
+        public Builder clearMessages() {
+          if (messagesBuilder_ == null) {
+            messages_ = java.util.Collections.emptyList();
+            bitField0_ = (bitField0_ & ~0x00000002);
+            onChanged();
+          } else {
+            messagesBuilder_.clear();
+          }
+          return this;
+        }
+        /**
+         * <code>repeated .akka.cluster.ddata.OtherMessage messages = 2;</code>
+         */
+        public Builder removeMessages(int index) {
+          if (messagesBuilder_ == null) {
+            ensureMessagesIsMutable();
+            messages_.remove(index);
+            onChanged();
+          } else {
+            messagesBuilder_.remove(index);
+          }
+          return this;
+        }
+        /**
+         * <code>repeated .akka.cluster.ddata.OtherMessage messages = 2;</code>
+         */
+        public akka.cluster.ddata.protobuf.msg.ReplicatorMessages.OtherMessage.Builder getMessagesBuilder(
+            int index) {
+          return getMessagesFieldBuilder().getBuilder(index);
+        }
+        /**
+         * <code>repeated .akka.cluster.ddata.OtherMessage messages = 2;</code>
+         */
+        public akka.cluster.ddata.protobuf.msg.ReplicatorMessages.OtherMessageOrBuilder getMessagesOrBuilder(
+            int index) {
+          if (messagesBuilder_ == null) {
+            return messages_.get(index);  } else {
+            return messagesBuilder_.getMessageOrBuilder(index);
+          }
+        }
+        /**
+         * <code>repeated .akka.cluster.ddata.OtherMessage messages = 2;</code>
+         */
+        public java.util.List<? extends akka.cluster.ddata.protobuf.msg.ReplicatorMessages.OtherMessageOrBuilder> 
+             getMessagesOrBuilderList() {
+          if (messagesBuilder_ != null) {
+            return messagesBuilder_.getMessageOrBuilderList();
+          } else {
+            return java.util.Collections.unmodifiableList(messages_);
+          }
+        }
+        /**
+         * <code>repeated .akka.cluster.ddata.OtherMessage messages = 2;</code>
+         */
+        public akka.cluster.ddata.protobuf.msg.ReplicatorMessages.OtherMessage.Builder addMessagesBuilder() {
+          return getMessagesFieldBuilder().addBuilder(
+              akka.cluster.ddata.protobuf.msg.ReplicatorMessages.OtherMessage.getDefaultInstance());
+        }
+        /**
+         * <code>repeated .akka.cluster.ddata.OtherMessage messages = 2;</code>
+         */
+        public akka.cluster.ddata.protobuf.msg.ReplicatorMessages.OtherMessage.Builder addMessagesBuilder(
+            int index) {
+          return getMessagesFieldBuilder().addBuilder(
+              index, akka.cluster.ddata.protobuf.msg.ReplicatorMessages.OtherMessage.getDefaultInstance());
+        }
+        /**
+         * <code>repeated .akka.cluster.ddata.OtherMessage messages = 2;</code>
+         */
+        public java.util.List<akka.cluster.ddata.protobuf.msg.ReplicatorMessages.OtherMessage.Builder> 
+             getMessagesBuilderList() {
+          return getMessagesFieldBuilder().getBuilderList();
+        }
+        private akka.protobufv3.internal.RepeatedFieldBuilderV3<
+            akka.cluster.ddata.protobuf.msg.ReplicatorMessages.OtherMessage, akka.cluster.ddata.protobuf.msg.ReplicatorMessages.OtherMessage.Builder, akka.cluster.ddata.protobuf.msg.ReplicatorMessages.OtherMessageOrBuilder> 
+            getMessagesFieldBuilder() {
+          if (messagesBuilder_ == null) {
+            messagesBuilder_ = new akka.protobufv3.internal.RepeatedFieldBuilderV3<
+                akka.cluster.ddata.protobuf.msg.ReplicatorMessages.OtherMessage, akka.cluster.ddata.protobuf.msg.ReplicatorMessages.OtherMessage.Builder, akka.cluster.ddata.protobuf.msg.ReplicatorMessages.OtherMessageOrBuilder>(
+                    messages_,
+                    ((bitField0_ & 0x00000002) != 0),
+                    getParentForChildren(),
+                    isClean());
+            messages_ = null;
+          }
+          return messagesBuilder_;
+        }
+        @java.lang.Override
+        public final Builder setUnknownFields(
+            final akka.protobufv3.internal.UnknownFieldSet unknownFields) {
+          return super.setUnknownFields(unknownFields);
+        }
+
+        @java.lang.Override
+        public final Builder mergeUnknownFields(
+            final akka.protobufv3.internal.UnknownFieldSet unknownFields) {
+          return super.mergeUnknownFields(unknownFields);
+        }
+
+
+        // @@protoc_insertion_point(builder_scope:akka.cluster.ddata.SnapshotGossip.Entry2)
+      }
+
+      // @@protoc_insertion_point(class_scope:akka.cluster.ddata.SnapshotGossip.Entry2)
+      private static final akka.cluster.ddata.protobuf.msg.ReplicatorMessages.SnapshotGossip.Entry2 DEFAULT_INSTANCE;
+      static {
+        DEFAULT_INSTANCE = new akka.cluster.ddata.protobuf.msg.ReplicatorMessages.SnapshotGossip.Entry2();
+      }
+
+      public static akka.cluster.ddata.protobuf.msg.ReplicatorMessages.SnapshotGossip.Entry2 getDefaultInstance() {
+        return DEFAULT_INSTANCE;
+      }
+
+      @java.lang.Deprecated public static final akka.protobufv3.internal.Parser<Entry2>
+          PARSER = new akka.protobufv3.internal.AbstractParser<Entry2>() {
+        @java.lang.Override
+        public Entry2 parsePartialFrom(
+            akka.protobufv3.internal.CodedInputStream input,
+            akka.protobufv3.internal.ExtensionRegistryLite extensionRegistry)
+            throws akka.protobufv3.internal.InvalidProtocolBufferException {
+          return new Entry2(input, extensionRegistry);
+        }
+      };
+
+      public static akka.protobufv3.internal.Parser<Entry2> parser() {
+        return PARSER;
+      }
+
+      @java.lang.Override
+      public akka.protobufv3.internal.Parser<Entry2> getParserForType() {
+        return PARSER;
+      }
+
+      @java.lang.Override
+      public akka.cluster.ddata.protobuf.msg.ReplicatorMessages.SnapshotGossip.Entry2 getDefaultInstanceForType() {
+        return DEFAULT_INSTANCE;
+      }
+
+    }
+
     private int bitField0_;
     public static final int FROMNODE_FIELD_NUMBER = 1;
     private akka.cluster.ddata.protobuf.msg.ReplicatorMessages.UniqueAddress fromNode_;
@@ -17134,17 +18159,52 @@ public final class ReplicatorMessages {
       return entries_.get(index);
     }
 
-    public static final int TOSYSTEMUID_FIELD_NUMBER = 4;
+    public static final int ENTRIES2_FIELD_NUMBER = 4;
+    private java.util.List<akka.cluster.ddata.protobuf.msg.ReplicatorMessages.SnapshotGossip.Entry2> entries2_;
+    /**
+     * <code>repeated .akka.cluster.ddata.SnapshotGossip.Entry2 entries2 = 4;</code>
+     */
+    public java.util.List<akka.cluster.ddata.protobuf.msg.ReplicatorMessages.SnapshotGossip.Entry2> getEntries2List() {
+      return entries2_;
+    }
+    /**
+     * <code>repeated .akka.cluster.ddata.SnapshotGossip.Entry2 entries2 = 4;</code>
+     */
+    public java.util.List<? extends akka.cluster.ddata.protobuf.msg.ReplicatorMessages.SnapshotGossip.Entry2OrBuilder> 
+        getEntries2OrBuilderList() {
+      return entries2_;
+    }
+    /**
+     * <code>repeated .akka.cluster.ddata.SnapshotGossip.Entry2 entries2 = 4;</code>
+     */
+    public int getEntries2Count() {
+      return entries2_.size();
+    }
+    /**
+     * <code>repeated .akka.cluster.ddata.SnapshotGossip.Entry2 entries2 = 4;</code>
+     */
+    public akka.cluster.ddata.protobuf.msg.ReplicatorMessages.SnapshotGossip.Entry2 getEntries2(int index) {
+      return entries2_.get(index);
+    }
+    /**
+     * <code>repeated .akka.cluster.ddata.SnapshotGossip.Entry2 entries2 = 4;</code>
+     */
+    public akka.cluster.ddata.protobuf.msg.ReplicatorMessages.SnapshotGossip.Entry2OrBuilder getEntries2OrBuilder(
+        int index) {
+      return entries2_.get(index);
+    }
+
+    public static final int TOSYSTEMUID_FIELD_NUMBER = 5;
     private long toSystemUid_;
     /**
-     * <code>optional sfixed64 toSystemUid = 4;</code>
+     * <code>optional sfixed64 toSystemUid = 5;</code>
      * @return Whether the toSystemUid field is set.
      */
     public boolean hasToSystemUid() {
       return ((bitField0_ & 0x00000004) != 0);
     }
     /**
-     * <code>optional sfixed64 toSystemUid = 4;</code>
+     * <code>optional sfixed64 toSystemUid = 5;</code>
      * @return The toSystemUid.
      */
     public long getToSystemUid() {
@@ -17180,6 +18240,12 @@ public final class ReplicatorMessages {
           return false;
         }
       }
+      for (int i = 0; i < getEntries2Count(); i++) {
+        if (!getEntries2(i).isInitialized()) {
+          memoizedIsInitialized = 0;
+          return false;
+        }
+      }
       memoizedIsInitialized = 1;
       return true;
     }
@@ -17196,8 +18262,11 @@ public final class ReplicatorMessages {
       for (int i = 0; i < entries_.size(); i++) {
         output.writeMessage(3, entries_.get(i));
       }
+      for (int i = 0; i < entries2_.size(); i++) {
+        output.writeMessage(4, entries2_.get(i));
+      }
       if (((bitField0_ & 0x00000004) != 0)) {
-        output.writeSFixed64(4, toSystemUid_);
+        output.writeSFixed64(5, toSystemUid_);
       }
       unknownFields.writeTo(output);
     }
@@ -17220,9 +18289,13 @@ public final class ReplicatorMessages {
         size += akka.protobufv3.internal.CodedOutputStream
           .computeMessageSize(3, entries_.get(i));
       }
+      for (int i = 0; i < entries2_.size(); i++) {
+        size += akka.protobufv3.internal.CodedOutputStream
+          .computeMessageSize(4, entries2_.get(i));
+      }
       if (((bitField0_ & 0x00000004) != 0)) {
         size += akka.protobufv3.internal.CodedOutputStream
-          .computeSFixed64Size(4, toSystemUid_);
+          .computeSFixed64Size(5, toSystemUid_);
       }
       size += unknownFields.getSerializedSize();
       memoizedSize = size;
@@ -17251,6 +18324,8 @@ public final class ReplicatorMessages {
       }
       if (!getEntriesList()
           .equals(other.getEntriesList())) return false;
+      if (!getEntries2List()
+          .equals(other.getEntries2List())) return false;
       if (hasToSystemUid() != other.hasToSystemUid()) return false;
       if (hasToSystemUid()) {
         if (getToSystemUid()
@@ -17278,6 +18353,10 @@ public final class ReplicatorMessages {
       if (getEntriesCount() > 0) {
         hash = (37 * hash) + ENTRIES_FIELD_NUMBER;
         hash = (53 * hash) + getEntriesList().hashCode();
+      }
+      if (getEntries2Count() > 0) {
+        hash = (37 * hash) + ENTRIES2_FIELD_NUMBER;
+        hash = (53 * hash) + getEntries2List().hashCode();
       }
       if (hasToSystemUid()) {
         hash = (37 * hash) + TOSYSTEMUID_FIELD_NUMBER;
@@ -17415,6 +18494,7 @@ public final class ReplicatorMessages {
           getFromNodeFieldBuilder();
           getVersionVectorFieldBuilder();
           getEntriesFieldBuilder();
+          getEntries2FieldBuilder();
         }
       }
       @java.lang.Override
@@ -17438,8 +18518,14 @@ public final class ReplicatorMessages {
         } else {
           entriesBuilder_.clear();
         }
+        if (entries2Builder_ == null) {
+          entries2_ = java.util.Collections.emptyList();
+          bitField0_ = (bitField0_ & ~0x00000008);
+        } else {
+          entries2Builder_.clear();
+        }
         toSystemUid_ = 0L;
-        bitField0_ = (bitField0_ & ~0x00000008);
+        bitField0_ = (bitField0_ & ~0x00000010);
         return this;
       }
 
@@ -17493,7 +18579,16 @@ public final class ReplicatorMessages {
         } else {
           result.entries_ = entriesBuilder_.build();
         }
-        if (((from_bitField0_ & 0x00000008) != 0)) {
+        if (entries2Builder_ == null) {
+          if (((bitField0_ & 0x00000008) != 0)) {
+            entries2_ = java.util.Collections.unmodifiableList(entries2_);
+            bitField0_ = (bitField0_ & ~0x00000008);
+          }
+          result.entries2_ = entries2_;
+        } else {
+          result.entries2_ = entries2Builder_.build();
+        }
+        if (((from_bitField0_ & 0x00000010) != 0)) {
           result.toSystemUid_ = toSystemUid_;
           to_bitField0_ |= 0x00000004;
         }
@@ -17578,6 +18673,32 @@ public final class ReplicatorMessages {
             }
           }
         }
+        if (entries2Builder_ == null) {
+          if (!other.entries2_.isEmpty()) {
+            if (entries2_.isEmpty()) {
+              entries2_ = other.entries2_;
+              bitField0_ = (bitField0_ & ~0x00000008);
+            } else {
+              ensureEntries2IsMutable();
+              entries2_.addAll(other.entries2_);
+            }
+            onChanged();
+          }
+        } else {
+          if (!other.entries2_.isEmpty()) {
+            if (entries2Builder_.isEmpty()) {
+              entries2Builder_.dispose();
+              entries2Builder_ = null;
+              entries2_ = other.entries2_;
+              bitField0_ = (bitField0_ & ~0x00000008);
+              entries2Builder_ = 
+                akka.protobufv3.internal.GeneratedMessageV3.alwaysUseFieldBuilders ?
+                   getEntries2FieldBuilder() : null;
+            } else {
+              entries2Builder_.addAllMessages(other.entries2_);
+            }
+          }
+        }
         if (other.hasToSystemUid()) {
           setToSystemUid(other.getToSystemUid());
         }
@@ -17602,6 +18723,11 @@ public final class ReplicatorMessages {
         }
         for (int i = 0; i < getEntriesCount(); i++) {
           if (!getEntries(i).isInitialized()) {
+            return false;
+          }
+        }
+        for (int i = 0; i < getEntries2Count(); i++) {
+          if (!getEntries2(i).isInitialized()) {
             return false;
           }
         }
@@ -18108,38 +19234,278 @@ public final class ReplicatorMessages {
         return entriesBuilder_;
       }
 
+      private java.util.List<akka.cluster.ddata.protobuf.msg.ReplicatorMessages.SnapshotGossip.Entry2> entries2_ =
+        java.util.Collections.emptyList();
+      private void ensureEntries2IsMutable() {
+        if (!((bitField0_ & 0x00000008) != 0)) {
+          entries2_ = new java.util.ArrayList<akka.cluster.ddata.protobuf.msg.ReplicatorMessages.SnapshotGossip.Entry2>(entries2_);
+          bitField0_ |= 0x00000008;
+         }
+      }
+
+      private akka.protobufv3.internal.RepeatedFieldBuilderV3<
+          akka.cluster.ddata.protobuf.msg.ReplicatorMessages.SnapshotGossip.Entry2, akka.cluster.ddata.protobuf.msg.ReplicatorMessages.SnapshotGossip.Entry2.Builder, akka.cluster.ddata.protobuf.msg.ReplicatorMessages.SnapshotGossip.Entry2OrBuilder> entries2Builder_;
+
+      /**
+       * <code>repeated .akka.cluster.ddata.SnapshotGossip.Entry2 entries2 = 4;</code>
+       */
+      public java.util.List<akka.cluster.ddata.protobuf.msg.ReplicatorMessages.SnapshotGossip.Entry2> getEntries2List() {
+        if (entries2Builder_ == null) {
+          return java.util.Collections.unmodifiableList(entries2_);
+        } else {
+          return entries2Builder_.getMessageList();
+        }
+      }
+      /**
+       * <code>repeated .akka.cluster.ddata.SnapshotGossip.Entry2 entries2 = 4;</code>
+       */
+      public int getEntries2Count() {
+        if (entries2Builder_ == null) {
+          return entries2_.size();
+        } else {
+          return entries2Builder_.getCount();
+        }
+      }
+      /**
+       * <code>repeated .akka.cluster.ddata.SnapshotGossip.Entry2 entries2 = 4;</code>
+       */
+      public akka.cluster.ddata.protobuf.msg.ReplicatorMessages.SnapshotGossip.Entry2 getEntries2(int index) {
+        if (entries2Builder_ == null) {
+          return entries2_.get(index);
+        } else {
+          return entries2Builder_.getMessage(index);
+        }
+      }
+      /**
+       * <code>repeated .akka.cluster.ddata.SnapshotGossip.Entry2 entries2 = 4;</code>
+       */
+      public Builder setEntries2(
+          int index, akka.cluster.ddata.protobuf.msg.ReplicatorMessages.SnapshotGossip.Entry2 value) {
+        if (entries2Builder_ == null) {
+          if (value == null) {
+            throw new NullPointerException();
+          }
+          ensureEntries2IsMutable();
+          entries2_.set(index, value);
+          onChanged();
+        } else {
+          entries2Builder_.setMessage(index, value);
+        }
+        return this;
+      }
+      /**
+       * <code>repeated .akka.cluster.ddata.SnapshotGossip.Entry2 entries2 = 4;</code>
+       */
+      public Builder setEntries2(
+          int index, akka.cluster.ddata.protobuf.msg.ReplicatorMessages.SnapshotGossip.Entry2.Builder builderForValue) {
+        if (entries2Builder_ == null) {
+          ensureEntries2IsMutable();
+          entries2_.set(index, builderForValue.build());
+          onChanged();
+        } else {
+          entries2Builder_.setMessage(index, builderForValue.build());
+        }
+        return this;
+      }
+      /**
+       * <code>repeated .akka.cluster.ddata.SnapshotGossip.Entry2 entries2 = 4;</code>
+       */
+      public Builder addEntries2(akka.cluster.ddata.protobuf.msg.ReplicatorMessages.SnapshotGossip.Entry2 value) {
+        if (entries2Builder_ == null) {
+          if (value == null) {
+            throw new NullPointerException();
+          }
+          ensureEntries2IsMutable();
+          entries2_.add(value);
+          onChanged();
+        } else {
+          entries2Builder_.addMessage(value);
+        }
+        return this;
+      }
+      /**
+       * <code>repeated .akka.cluster.ddata.SnapshotGossip.Entry2 entries2 = 4;</code>
+       */
+      public Builder addEntries2(
+          int index, akka.cluster.ddata.protobuf.msg.ReplicatorMessages.SnapshotGossip.Entry2 value) {
+        if (entries2Builder_ == null) {
+          if (value == null) {
+            throw new NullPointerException();
+          }
+          ensureEntries2IsMutable();
+          entries2_.add(index, value);
+          onChanged();
+        } else {
+          entries2Builder_.addMessage(index, value);
+        }
+        return this;
+      }
+      /**
+       * <code>repeated .akka.cluster.ddata.SnapshotGossip.Entry2 entries2 = 4;</code>
+       */
+      public Builder addEntries2(
+          akka.cluster.ddata.protobuf.msg.ReplicatorMessages.SnapshotGossip.Entry2.Builder builderForValue) {
+        if (entries2Builder_ == null) {
+          ensureEntries2IsMutable();
+          entries2_.add(builderForValue.build());
+          onChanged();
+        } else {
+          entries2Builder_.addMessage(builderForValue.build());
+        }
+        return this;
+      }
+      /**
+       * <code>repeated .akka.cluster.ddata.SnapshotGossip.Entry2 entries2 = 4;</code>
+       */
+      public Builder addEntries2(
+          int index, akka.cluster.ddata.protobuf.msg.ReplicatorMessages.SnapshotGossip.Entry2.Builder builderForValue) {
+        if (entries2Builder_ == null) {
+          ensureEntries2IsMutable();
+          entries2_.add(index, builderForValue.build());
+          onChanged();
+        } else {
+          entries2Builder_.addMessage(index, builderForValue.build());
+        }
+        return this;
+      }
+      /**
+       * <code>repeated .akka.cluster.ddata.SnapshotGossip.Entry2 entries2 = 4;</code>
+       */
+      public Builder addAllEntries2(
+          java.lang.Iterable<? extends akka.cluster.ddata.protobuf.msg.ReplicatorMessages.SnapshotGossip.Entry2> values) {
+        if (entries2Builder_ == null) {
+          ensureEntries2IsMutable();
+          akka.protobufv3.internal.AbstractMessageLite.Builder.addAll(
+              values, entries2_);
+          onChanged();
+        } else {
+          entries2Builder_.addAllMessages(values);
+        }
+        return this;
+      }
+      /**
+       * <code>repeated .akka.cluster.ddata.SnapshotGossip.Entry2 entries2 = 4;</code>
+       */
+      public Builder clearEntries2() {
+        if (entries2Builder_ == null) {
+          entries2_ = java.util.Collections.emptyList();
+          bitField0_ = (bitField0_ & ~0x00000008);
+          onChanged();
+        } else {
+          entries2Builder_.clear();
+        }
+        return this;
+      }
+      /**
+       * <code>repeated .akka.cluster.ddata.SnapshotGossip.Entry2 entries2 = 4;</code>
+       */
+      public Builder removeEntries2(int index) {
+        if (entries2Builder_ == null) {
+          ensureEntries2IsMutable();
+          entries2_.remove(index);
+          onChanged();
+        } else {
+          entries2Builder_.remove(index);
+        }
+        return this;
+      }
+      /**
+       * <code>repeated .akka.cluster.ddata.SnapshotGossip.Entry2 entries2 = 4;</code>
+       */
+      public akka.cluster.ddata.protobuf.msg.ReplicatorMessages.SnapshotGossip.Entry2.Builder getEntries2Builder(
+          int index) {
+        return getEntries2FieldBuilder().getBuilder(index);
+      }
+      /**
+       * <code>repeated .akka.cluster.ddata.SnapshotGossip.Entry2 entries2 = 4;</code>
+       */
+      public akka.cluster.ddata.protobuf.msg.ReplicatorMessages.SnapshotGossip.Entry2OrBuilder getEntries2OrBuilder(
+          int index) {
+        if (entries2Builder_ == null) {
+          return entries2_.get(index);  } else {
+          return entries2Builder_.getMessageOrBuilder(index);
+        }
+      }
+      /**
+       * <code>repeated .akka.cluster.ddata.SnapshotGossip.Entry2 entries2 = 4;</code>
+       */
+      public java.util.List<? extends akka.cluster.ddata.protobuf.msg.ReplicatorMessages.SnapshotGossip.Entry2OrBuilder> 
+           getEntries2OrBuilderList() {
+        if (entries2Builder_ != null) {
+          return entries2Builder_.getMessageOrBuilderList();
+        } else {
+          return java.util.Collections.unmodifiableList(entries2_);
+        }
+      }
+      /**
+       * <code>repeated .akka.cluster.ddata.SnapshotGossip.Entry2 entries2 = 4;</code>
+       */
+      public akka.cluster.ddata.protobuf.msg.ReplicatorMessages.SnapshotGossip.Entry2.Builder addEntries2Builder() {
+        return getEntries2FieldBuilder().addBuilder(
+            akka.cluster.ddata.protobuf.msg.ReplicatorMessages.SnapshotGossip.Entry2.getDefaultInstance());
+      }
+      /**
+       * <code>repeated .akka.cluster.ddata.SnapshotGossip.Entry2 entries2 = 4;</code>
+       */
+      public akka.cluster.ddata.protobuf.msg.ReplicatorMessages.SnapshotGossip.Entry2.Builder addEntries2Builder(
+          int index) {
+        return getEntries2FieldBuilder().addBuilder(
+            index, akka.cluster.ddata.protobuf.msg.ReplicatorMessages.SnapshotGossip.Entry2.getDefaultInstance());
+      }
+      /**
+       * <code>repeated .akka.cluster.ddata.SnapshotGossip.Entry2 entries2 = 4;</code>
+       */
+      public java.util.List<akka.cluster.ddata.protobuf.msg.ReplicatorMessages.SnapshotGossip.Entry2.Builder> 
+           getEntries2BuilderList() {
+        return getEntries2FieldBuilder().getBuilderList();
+      }
+      private akka.protobufv3.internal.RepeatedFieldBuilderV3<
+          akka.cluster.ddata.protobuf.msg.ReplicatorMessages.SnapshotGossip.Entry2, akka.cluster.ddata.protobuf.msg.ReplicatorMessages.SnapshotGossip.Entry2.Builder, akka.cluster.ddata.protobuf.msg.ReplicatorMessages.SnapshotGossip.Entry2OrBuilder> 
+          getEntries2FieldBuilder() {
+        if (entries2Builder_ == null) {
+          entries2Builder_ = new akka.protobufv3.internal.RepeatedFieldBuilderV3<
+              akka.cluster.ddata.protobuf.msg.ReplicatorMessages.SnapshotGossip.Entry2, akka.cluster.ddata.protobuf.msg.ReplicatorMessages.SnapshotGossip.Entry2.Builder, akka.cluster.ddata.protobuf.msg.ReplicatorMessages.SnapshotGossip.Entry2OrBuilder>(
+                  entries2_,
+                  ((bitField0_ & 0x00000008) != 0),
+                  getParentForChildren(),
+                  isClean());
+          entries2_ = null;
+        }
+        return entries2Builder_;
+      }
+
       private long toSystemUid_ ;
       /**
-       * <code>optional sfixed64 toSystemUid = 4;</code>
+       * <code>optional sfixed64 toSystemUid = 5;</code>
        * @return Whether the toSystemUid field is set.
        */
       public boolean hasToSystemUid() {
-        return ((bitField0_ & 0x00000008) != 0);
+        return ((bitField0_ & 0x00000010) != 0);
       }
       /**
-       * <code>optional sfixed64 toSystemUid = 4;</code>
+       * <code>optional sfixed64 toSystemUid = 5;</code>
        * @return The toSystemUid.
        */
       public long getToSystemUid() {
         return toSystemUid_;
       }
       /**
-       * <code>optional sfixed64 toSystemUid = 4;</code>
+       * <code>optional sfixed64 toSystemUid = 5;</code>
        * @param value The toSystemUid to set.
        * @return This builder for chaining.
        */
       public Builder setToSystemUid(long value) {
-        bitField0_ |= 0x00000008;
+        bitField0_ |= 0x00000010;
         toSystemUid_ = value;
         onChanged();
         return this;
       }
       /**
-       * <code>optional sfixed64 toSystemUid = 4;</code>
+       * <code>optional sfixed64 toSystemUid = 5;</code>
        * @return This builder for chaining.
        */
       public Builder clearToSystemUid() {
-        bitField0_ = (bitField0_ & ~0x00000008);
+        bitField0_ = (bitField0_ & ~0x00000010);
         toSystemUid_ = 0L;
         onChanged();
         return this;
@@ -25924,1246 +27290,6 @@ public final class ReplicatorMessages {
 
   }
 
-  public interface CausalMessageWrapperOrBuilder extends
-      // @@protoc_insertion_point(interface_extends:akka.cluster.ddata.CausalMessageWrapper)
-      akka.protobufv3.internal.MessageOrBuilder {
-
-    /**
-     * <code>repeated .akka.cluster.ddata.OtherMessage msgs = 1;</code>
-     */
-    java.util.List<akka.cluster.ddata.protobuf.msg.ReplicatorMessages.OtherMessage> 
-        getMsgsList();
-    /**
-     * <code>repeated .akka.cluster.ddata.OtherMessage msgs = 1;</code>
-     */
-    akka.cluster.ddata.protobuf.msg.ReplicatorMessages.OtherMessage getMsgs(int index);
-    /**
-     * <code>repeated .akka.cluster.ddata.OtherMessage msgs = 1;</code>
-     */
-    int getMsgsCount();
-    /**
-     * <code>repeated .akka.cluster.ddata.OtherMessage msgs = 1;</code>
-     */
-    java.util.List<? extends akka.cluster.ddata.protobuf.msg.ReplicatorMessages.OtherMessageOrBuilder> 
-        getMsgsOrBuilderList();
-    /**
-     * <code>repeated .akka.cluster.ddata.OtherMessage msgs = 1;</code>
-     */
-    akka.cluster.ddata.protobuf.msg.ReplicatorMessages.OtherMessageOrBuilder getMsgsOrBuilder(
-        int index);
-
-    /**
-     * <code>required .akka.cluster.ddata.VersionVector version = 2;</code>
-     * @return Whether the version field is set.
-     */
-    boolean hasVersion();
-    /**
-     * <code>required .akka.cluster.ddata.VersionVector version = 2;</code>
-     * @return The version.
-     */
-    akka.cluster.ddata.protobuf.msg.ReplicatorMessages.VersionVector getVersion();
-    /**
-     * <code>required .akka.cluster.ddata.VersionVector version = 2;</code>
-     */
-    akka.cluster.ddata.protobuf.msg.ReplicatorMessages.VersionVectorOrBuilder getVersionOrBuilder();
-
-    /**
-     * <code>required .akka.cluster.ddata.UniqueAddress fromNode = 3;</code>
-     * @return Whether the fromNode field is set.
-     */
-    boolean hasFromNode();
-    /**
-     * <code>required .akka.cluster.ddata.UniqueAddress fromNode = 3;</code>
-     * @return The fromNode.
-     */
-    akka.cluster.ddata.protobuf.msg.ReplicatorMessages.UniqueAddress getFromNode();
-    /**
-     * <code>required .akka.cluster.ddata.UniqueAddress fromNode = 3;</code>
-     */
-    akka.cluster.ddata.protobuf.msg.ReplicatorMessages.UniqueAddressOrBuilder getFromNodeOrBuilder();
-  }
-  /**
-   * Protobuf type {@code akka.cluster.ddata.CausalMessageWrapper}
-   */
-  public  static final class CausalMessageWrapper extends
-      akka.protobufv3.internal.GeneratedMessageV3 implements
-      // @@protoc_insertion_point(message_implements:akka.cluster.ddata.CausalMessageWrapper)
-      CausalMessageWrapperOrBuilder {
-  private static final long serialVersionUID = 0L;
-    // Use CausalMessageWrapper.newBuilder() to construct.
-    private CausalMessageWrapper(akka.protobufv3.internal.GeneratedMessageV3.Builder<?> builder) {
-      super(builder);
-    }
-    private CausalMessageWrapper() {
-      msgs_ = java.util.Collections.emptyList();
-    }
-
-    @java.lang.Override
-    @SuppressWarnings({"unused"})
-    protected java.lang.Object newInstance(
-        akka.protobufv3.internal.GeneratedMessageV3.UnusedPrivateParameter unused) {
-      return new CausalMessageWrapper();
-    }
-
-    @java.lang.Override
-    public final akka.protobufv3.internal.UnknownFieldSet
-    getUnknownFields() {
-      return this.unknownFields;
-    }
-    private CausalMessageWrapper(
-        akka.protobufv3.internal.CodedInputStream input,
-        akka.protobufv3.internal.ExtensionRegistryLite extensionRegistry)
-        throws akka.protobufv3.internal.InvalidProtocolBufferException {
-      this();
-      if (extensionRegistry == null) {
-        throw new java.lang.NullPointerException();
-      }
-      int mutable_bitField0_ = 0;
-      akka.protobufv3.internal.UnknownFieldSet.Builder unknownFields =
-          akka.protobufv3.internal.UnknownFieldSet.newBuilder();
-      try {
-        boolean done = false;
-        while (!done) {
-          int tag = input.readTag();
-          switch (tag) {
-            case 0:
-              done = true;
-              break;
-            case 10: {
-              if (!((mutable_bitField0_ & 0x00000001) != 0)) {
-                msgs_ = new java.util.ArrayList<akka.cluster.ddata.protobuf.msg.ReplicatorMessages.OtherMessage>();
-                mutable_bitField0_ |= 0x00000001;
-              }
-              msgs_.add(
-                  input.readMessage(akka.cluster.ddata.protobuf.msg.ReplicatorMessages.OtherMessage.PARSER, extensionRegistry));
-              break;
-            }
-            case 18: {
-              akka.cluster.ddata.protobuf.msg.ReplicatorMessages.VersionVector.Builder subBuilder = null;
-              if (((bitField0_ & 0x00000001) != 0)) {
-                subBuilder = version_.toBuilder();
-              }
-              version_ = input.readMessage(akka.cluster.ddata.protobuf.msg.ReplicatorMessages.VersionVector.PARSER, extensionRegistry);
-              if (subBuilder != null) {
-                subBuilder.mergeFrom(version_);
-                version_ = subBuilder.buildPartial();
-              }
-              bitField0_ |= 0x00000001;
-              break;
-            }
-            case 26: {
-              akka.cluster.ddata.protobuf.msg.ReplicatorMessages.UniqueAddress.Builder subBuilder = null;
-              if (((bitField0_ & 0x00000002) != 0)) {
-                subBuilder = fromNode_.toBuilder();
-              }
-              fromNode_ = input.readMessage(akka.cluster.ddata.protobuf.msg.ReplicatorMessages.UniqueAddress.PARSER, extensionRegistry);
-              if (subBuilder != null) {
-                subBuilder.mergeFrom(fromNode_);
-                fromNode_ = subBuilder.buildPartial();
-              }
-              bitField0_ |= 0x00000002;
-              break;
-            }
-            default: {
-              if (!parseUnknownField(
-                  input, unknownFields, extensionRegistry, tag)) {
-                done = true;
-              }
-              break;
-            }
-          }
-        }
-      } catch (akka.protobufv3.internal.InvalidProtocolBufferException e) {
-        throw e.setUnfinishedMessage(this);
-      } catch (java.io.IOException e) {
-        throw new akka.protobufv3.internal.InvalidProtocolBufferException(
-            e).setUnfinishedMessage(this);
-      } finally {
-        if (((mutable_bitField0_ & 0x00000001) != 0)) {
-          msgs_ = java.util.Collections.unmodifiableList(msgs_);
-        }
-        this.unknownFields = unknownFields.build();
-        makeExtensionsImmutable();
-      }
-    }
-    public static final akka.protobufv3.internal.Descriptors.Descriptor
-        getDescriptor() {
-      return akka.cluster.ddata.protobuf.msg.ReplicatorMessages.internal_static_akka_cluster_ddata_CausalMessageWrapper_descriptor;
-    }
-
-    @java.lang.Override
-    protected akka.protobufv3.internal.GeneratedMessageV3.FieldAccessorTable
-        internalGetFieldAccessorTable() {
-      return akka.cluster.ddata.protobuf.msg.ReplicatorMessages.internal_static_akka_cluster_ddata_CausalMessageWrapper_fieldAccessorTable
-          .ensureFieldAccessorsInitialized(
-              akka.cluster.ddata.protobuf.msg.ReplicatorMessages.CausalMessageWrapper.class, akka.cluster.ddata.protobuf.msg.ReplicatorMessages.CausalMessageWrapper.Builder.class);
-    }
-
-    private int bitField0_;
-    public static final int MSGS_FIELD_NUMBER = 1;
-    private java.util.List<akka.cluster.ddata.protobuf.msg.ReplicatorMessages.OtherMessage> msgs_;
-    /**
-     * <code>repeated .akka.cluster.ddata.OtherMessage msgs = 1;</code>
-     */
-    public java.util.List<akka.cluster.ddata.protobuf.msg.ReplicatorMessages.OtherMessage> getMsgsList() {
-      return msgs_;
-    }
-    /**
-     * <code>repeated .akka.cluster.ddata.OtherMessage msgs = 1;</code>
-     */
-    public java.util.List<? extends akka.cluster.ddata.protobuf.msg.ReplicatorMessages.OtherMessageOrBuilder> 
-        getMsgsOrBuilderList() {
-      return msgs_;
-    }
-    /**
-     * <code>repeated .akka.cluster.ddata.OtherMessage msgs = 1;</code>
-     */
-    public int getMsgsCount() {
-      return msgs_.size();
-    }
-    /**
-     * <code>repeated .akka.cluster.ddata.OtherMessage msgs = 1;</code>
-     */
-    public akka.cluster.ddata.protobuf.msg.ReplicatorMessages.OtherMessage getMsgs(int index) {
-      return msgs_.get(index);
-    }
-    /**
-     * <code>repeated .akka.cluster.ddata.OtherMessage msgs = 1;</code>
-     */
-    public akka.cluster.ddata.protobuf.msg.ReplicatorMessages.OtherMessageOrBuilder getMsgsOrBuilder(
-        int index) {
-      return msgs_.get(index);
-    }
-
-    public static final int VERSION_FIELD_NUMBER = 2;
-    private akka.cluster.ddata.protobuf.msg.ReplicatorMessages.VersionVector version_;
-    /**
-     * <code>required .akka.cluster.ddata.VersionVector version = 2;</code>
-     * @return Whether the version field is set.
-     */
-    public boolean hasVersion() {
-      return ((bitField0_ & 0x00000001) != 0);
-    }
-    /**
-     * <code>required .akka.cluster.ddata.VersionVector version = 2;</code>
-     * @return The version.
-     */
-    public akka.cluster.ddata.protobuf.msg.ReplicatorMessages.VersionVector getVersion() {
-      return version_ == null ? akka.cluster.ddata.protobuf.msg.ReplicatorMessages.VersionVector.getDefaultInstance() : version_;
-    }
-    /**
-     * <code>required .akka.cluster.ddata.VersionVector version = 2;</code>
-     */
-    public akka.cluster.ddata.protobuf.msg.ReplicatorMessages.VersionVectorOrBuilder getVersionOrBuilder() {
-      return version_ == null ? akka.cluster.ddata.protobuf.msg.ReplicatorMessages.VersionVector.getDefaultInstance() : version_;
-    }
-
-    public static final int FROMNODE_FIELD_NUMBER = 3;
-    private akka.cluster.ddata.protobuf.msg.ReplicatorMessages.UniqueAddress fromNode_;
-    /**
-     * <code>required .akka.cluster.ddata.UniqueAddress fromNode = 3;</code>
-     * @return Whether the fromNode field is set.
-     */
-    public boolean hasFromNode() {
-      return ((bitField0_ & 0x00000002) != 0);
-    }
-    /**
-     * <code>required .akka.cluster.ddata.UniqueAddress fromNode = 3;</code>
-     * @return The fromNode.
-     */
-    public akka.cluster.ddata.protobuf.msg.ReplicatorMessages.UniqueAddress getFromNode() {
-      return fromNode_ == null ? akka.cluster.ddata.protobuf.msg.ReplicatorMessages.UniqueAddress.getDefaultInstance() : fromNode_;
-    }
-    /**
-     * <code>required .akka.cluster.ddata.UniqueAddress fromNode = 3;</code>
-     */
-    public akka.cluster.ddata.protobuf.msg.ReplicatorMessages.UniqueAddressOrBuilder getFromNodeOrBuilder() {
-      return fromNode_ == null ? akka.cluster.ddata.protobuf.msg.ReplicatorMessages.UniqueAddress.getDefaultInstance() : fromNode_;
-    }
-
-    private byte memoizedIsInitialized = -1;
-    @java.lang.Override
-    public final boolean isInitialized() {
-      byte isInitialized = memoizedIsInitialized;
-      if (isInitialized == 1) return true;
-      if (isInitialized == 0) return false;
-
-      if (!hasVersion()) {
-        memoizedIsInitialized = 0;
-        return false;
-      }
-      if (!hasFromNode()) {
-        memoizedIsInitialized = 0;
-        return false;
-      }
-      for (int i = 0; i < getMsgsCount(); i++) {
-        if (!getMsgs(i).isInitialized()) {
-          memoizedIsInitialized = 0;
-          return false;
-        }
-      }
-      if (!getVersion().isInitialized()) {
-        memoizedIsInitialized = 0;
-        return false;
-      }
-      if (!getFromNode().isInitialized()) {
-        memoizedIsInitialized = 0;
-        return false;
-      }
-      memoizedIsInitialized = 1;
-      return true;
-    }
-
-    @java.lang.Override
-    public void writeTo(akka.protobufv3.internal.CodedOutputStream output)
-                        throws java.io.IOException {
-      for (int i = 0; i < msgs_.size(); i++) {
-        output.writeMessage(1, msgs_.get(i));
-      }
-      if (((bitField0_ & 0x00000001) != 0)) {
-        output.writeMessage(2, getVersion());
-      }
-      if (((bitField0_ & 0x00000002) != 0)) {
-        output.writeMessage(3, getFromNode());
-      }
-      unknownFields.writeTo(output);
-    }
-
-    @java.lang.Override
-    public int getSerializedSize() {
-      int size = memoizedSize;
-      if (size != -1) return size;
-
-      size = 0;
-      for (int i = 0; i < msgs_.size(); i++) {
-        size += akka.protobufv3.internal.CodedOutputStream
-          .computeMessageSize(1, msgs_.get(i));
-      }
-      if (((bitField0_ & 0x00000001) != 0)) {
-        size += akka.protobufv3.internal.CodedOutputStream
-          .computeMessageSize(2, getVersion());
-      }
-      if (((bitField0_ & 0x00000002) != 0)) {
-        size += akka.protobufv3.internal.CodedOutputStream
-          .computeMessageSize(3, getFromNode());
-      }
-      size += unknownFields.getSerializedSize();
-      memoizedSize = size;
-      return size;
-    }
-
-    @java.lang.Override
-    public boolean equals(final java.lang.Object obj) {
-      if (obj == this) {
-       return true;
-      }
-      if (!(obj instanceof akka.cluster.ddata.protobuf.msg.ReplicatorMessages.CausalMessageWrapper)) {
-        return super.equals(obj);
-      }
-      akka.cluster.ddata.protobuf.msg.ReplicatorMessages.CausalMessageWrapper other = (akka.cluster.ddata.protobuf.msg.ReplicatorMessages.CausalMessageWrapper) obj;
-
-      if (!getMsgsList()
-          .equals(other.getMsgsList())) return false;
-      if (hasVersion() != other.hasVersion()) return false;
-      if (hasVersion()) {
-        if (!getVersion()
-            .equals(other.getVersion())) return false;
-      }
-      if (hasFromNode() != other.hasFromNode()) return false;
-      if (hasFromNode()) {
-        if (!getFromNode()
-            .equals(other.getFromNode())) return false;
-      }
-      if (!unknownFields.equals(other.unknownFields)) return false;
-      return true;
-    }
-
-    @java.lang.Override
-    public int hashCode() {
-      if (memoizedHashCode != 0) {
-        return memoizedHashCode;
-      }
-      int hash = 41;
-      hash = (19 * hash) + getDescriptor().hashCode();
-      if (getMsgsCount() > 0) {
-        hash = (37 * hash) + MSGS_FIELD_NUMBER;
-        hash = (53 * hash) + getMsgsList().hashCode();
-      }
-      if (hasVersion()) {
-        hash = (37 * hash) + VERSION_FIELD_NUMBER;
-        hash = (53 * hash) + getVersion().hashCode();
-      }
-      if (hasFromNode()) {
-        hash = (37 * hash) + FROMNODE_FIELD_NUMBER;
-        hash = (53 * hash) + getFromNode().hashCode();
-      }
-      hash = (29 * hash) + unknownFields.hashCode();
-      memoizedHashCode = hash;
-      return hash;
-    }
-
-    public static akka.cluster.ddata.protobuf.msg.ReplicatorMessages.CausalMessageWrapper parseFrom(
-        java.nio.ByteBuffer data)
-        throws akka.protobufv3.internal.InvalidProtocolBufferException {
-      return PARSER.parseFrom(data);
-    }
-    public static akka.cluster.ddata.protobuf.msg.ReplicatorMessages.CausalMessageWrapper parseFrom(
-        java.nio.ByteBuffer data,
-        akka.protobufv3.internal.ExtensionRegistryLite extensionRegistry)
-        throws akka.protobufv3.internal.InvalidProtocolBufferException {
-      return PARSER.parseFrom(data, extensionRegistry);
-    }
-    public static akka.cluster.ddata.protobuf.msg.ReplicatorMessages.CausalMessageWrapper parseFrom(
-        akka.protobufv3.internal.ByteString data)
-        throws akka.protobufv3.internal.InvalidProtocolBufferException {
-      return PARSER.parseFrom(data);
-    }
-    public static akka.cluster.ddata.protobuf.msg.ReplicatorMessages.CausalMessageWrapper parseFrom(
-        akka.protobufv3.internal.ByteString data,
-        akka.protobufv3.internal.ExtensionRegistryLite extensionRegistry)
-        throws akka.protobufv3.internal.InvalidProtocolBufferException {
-      return PARSER.parseFrom(data, extensionRegistry);
-    }
-    public static akka.cluster.ddata.protobuf.msg.ReplicatorMessages.CausalMessageWrapper parseFrom(byte[] data)
-        throws akka.protobufv3.internal.InvalidProtocolBufferException {
-      return PARSER.parseFrom(data);
-    }
-    public static akka.cluster.ddata.protobuf.msg.ReplicatorMessages.CausalMessageWrapper parseFrom(
-        byte[] data,
-        akka.protobufv3.internal.ExtensionRegistryLite extensionRegistry)
-        throws akka.protobufv3.internal.InvalidProtocolBufferException {
-      return PARSER.parseFrom(data, extensionRegistry);
-    }
-    public static akka.cluster.ddata.protobuf.msg.ReplicatorMessages.CausalMessageWrapper parseFrom(java.io.InputStream input)
-        throws java.io.IOException {
-      return akka.protobufv3.internal.GeneratedMessageV3
-          .parseWithIOException(PARSER, input);
-    }
-    public static akka.cluster.ddata.protobuf.msg.ReplicatorMessages.CausalMessageWrapper parseFrom(
-        java.io.InputStream input,
-        akka.protobufv3.internal.ExtensionRegistryLite extensionRegistry)
-        throws java.io.IOException {
-      return akka.protobufv3.internal.GeneratedMessageV3
-          .parseWithIOException(PARSER, input, extensionRegistry);
-    }
-    public static akka.cluster.ddata.protobuf.msg.ReplicatorMessages.CausalMessageWrapper parseDelimitedFrom(java.io.InputStream input)
-        throws java.io.IOException {
-      return akka.protobufv3.internal.GeneratedMessageV3
-          .parseDelimitedWithIOException(PARSER, input);
-    }
-    public static akka.cluster.ddata.protobuf.msg.ReplicatorMessages.CausalMessageWrapper parseDelimitedFrom(
-        java.io.InputStream input,
-        akka.protobufv3.internal.ExtensionRegistryLite extensionRegistry)
-        throws java.io.IOException {
-      return akka.protobufv3.internal.GeneratedMessageV3
-          .parseDelimitedWithIOException(PARSER, input, extensionRegistry);
-    }
-    public static akka.cluster.ddata.protobuf.msg.ReplicatorMessages.CausalMessageWrapper parseFrom(
-        akka.protobufv3.internal.CodedInputStream input)
-        throws java.io.IOException {
-      return akka.protobufv3.internal.GeneratedMessageV3
-          .parseWithIOException(PARSER, input);
-    }
-    public static akka.cluster.ddata.protobuf.msg.ReplicatorMessages.CausalMessageWrapper parseFrom(
-        akka.protobufv3.internal.CodedInputStream input,
-        akka.protobufv3.internal.ExtensionRegistryLite extensionRegistry)
-        throws java.io.IOException {
-      return akka.protobufv3.internal.GeneratedMessageV3
-          .parseWithIOException(PARSER, input, extensionRegistry);
-    }
-
-    @java.lang.Override
-    public Builder newBuilderForType() { return newBuilder(); }
-    public static Builder newBuilder() {
-      return DEFAULT_INSTANCE.toBuilder();
-    }
-    public static Builder newBuilder(akka.cluster.ddata.protobuf.msg.ReplicatorMessages.CausalMessageWrapper prototype) {
-      return DEFAULT_INSTANCE.toBuilder().mergeFrom(prototype);
-    }
-    @java.lang.Override
-    public Builder toBuilder() {
-      return this == DEFAULT_INSTANCE
-          ? new Builder() : new Builder().mergeFrom(this);
-    }
-
-    @java.lang.Override
-    protected Builder newBuilderForType(
-        akka.protobufv3.internal.GeneratedMessageV3.BuilderParent parent) {
-      Builder builder = new Builder(parent);
-      return builder;
-    }
-    /**
-     * Protobuf type {@code akka.cluster.ddata.CausalMessageWrapper}
-     */
-    public static final class Builder extends
-        akka.protobufv3.internal.GeneratedMessageV3.Builder<Builder> implements
-        // @@protoc_insertion_point(builder_implements:akka.cluster.ddata.CausalMessageWrapper)
-        akka.cluster.ddata.protobuf.msg.ReplicatorMessages.CausalMessageWrapperOrBuilder {
-      public static final akka.protobufv3.internal.Descriptors.Descriptor
-          getDescriptor() {
-        return akka.cluster.ddata.protobuf.msg.ReplicatorMessages.internal_static_akka_cluster_ddata_CausalMessageWrapper_descriptor;
-      }
-
-      @java.lang.Override
-      protected akka.protobufv3.internal.GeneratedMessageV3.FieldAccessorTable
-          internalGetFieldAccessorTable() {
-        return akka.cluster.ddata.protobuf.msg.ReplicatorMessages.internal_static_akka_cluster_ddata_CausalMessageWrapper_fieldAccessorTable
-            .ensureFieldAccessorsInitialized(
-                akka.cluster.ddata.protobuf.msg.ReplicatorMessages.CausalMessageWrapper.class, akka.cluster.ddata.protobuf.msg.ReplicatorMessages.CausalMessageWrapper.Builder.class);
-      }
-
-      // Construct using akka.cluster.ddata.protobuf.msg.ReplicatorMessages.CausalMessageWrapper.newBuilder()
-      private Builder() {
-        maybeForceBuilderInitialization();
-      }
-
-      private Builder(
-          akka.protobufv3.internal.GeneratedMessageV3.BuilderParent parent) {
-        super(parent);
-        maybeForceBuilderInitialization();
-      }
-      private void maybeForceBuilderInitialization() {
-        if (akka.protobufv3.internal.GeneratedMessageV3
-                .alwaysUseFieldBuilders) {
-          getMsgsFieldBuilder();
-          getVersionFieldBuilder();
-          getFromNodeFieldBuilder();
-        }
-      }
-      @java.lang.Override
-      public Builder clear() {
-        super.clear();
-        if (msgsBuilder_ == null) {
-          msgs_ = java.util.Collections.emptyList();
-          bitField0_ = (bitField0_ & ~0x00000001);
-        } else {
-          msgsBuilder_.clear();
-        }
-        if (versionBuilder_ == null) {
-          version_ = null;
-        } else {
-          versionBuilder_.clear();
-        }
-        bitField0_ = (bitField0_ & ~0x00000002);
-        if (fromNodeBuilder_ == null) {
-          fromNode_ = null;
-        } else {
-          fromNodeBuilder_.clear();
-        }
-        bitField0_ = (bitField0_ & ~0x00000004);
-        return this;
-      }
-
-      @java.lang.Override
-      public akka.protobufv3.internal.Descriptors.Descriptor
-          getDescriptorForType() {
-        return akka.cluster.ddata.protobuf.msg.ReplicatorMessages.internal_static_akka_cluster_ddata_CausalMessageWrapper_descriptor;
-      }
-
-      @java.lang.Override
-      public akka.cluster.ddata.protobuf.msg.ReplicatorMessages.CausalMessageWrapper getDefaultInstanceForType() {
-        return akka.cluster.ddata.protobuf.msg.ReplicatorMessages.CausalMessageWrapper.getDefaultInstance();
-      }
-
-      @java.lang.Override
-      public akka.cluster.ddata.protobuf.msg.ReplicatorMessages.CausalMessageWrapper build() {
-        akka.cluster.ddata.protobuf.msg.ReplicatorMessages.CausalMessageWrapper result = buildPartial();
-        if (!result.isInitialized()) {
-          throw newUninitializedMessageException(result);
-        }
-        return result;
-      }
-
-      @java.lang.Override
-      public akka.cluster.ddata.protobuf.msg.ReplicatorMessages.CausalMessageWrapper buildPartial() {
-        akka.cluster.ddata.protobuf.msg.ReplicatorMessages.CausalMessageWrapper result = new akka.cluster.ddata.protobuf.msg.ReplicatorMessages.CausalMessageWrapper(this);
-        int from_bitField0_ = bitField0_;
-        int to_bitField0_ = 0;
-        if (msgsBuilder_ == null) {
-          if (((bitField0_ & 0x00000001) != 0)) {
-            msgs_ = java.util.Collections.unmodifiableList(msgs_);
-            bitField0_ = (bitField0_ & ~0x00000001);
-          }
-          result.msgs_ = msgs_;
-        } else {
-          result.msgs_ = msgsBuilder_.build();
-        }
-        if (((from_bitField0_ & 0x00000002) != 0)) {
-          if (versionBuilder_ == null) {
-            result.version_ = version_;
-          } else {
-            result.version_ = versionBuilder_.build();
-          }
-          to_bitField0_ |= 0x00000001;
-        }
-        if (((from_bitField0_ & 0x00000004) != 0)) {
-          if (fromNodeBuilder_ == null) {
-            result.fromNode_ = fromNode_;
-          } else {
-            result.fromNode_ = fromNodeBuilder_.build();
-          }
-          to_bitField0_ |= 0x00000002;
-        }
-        result.bitField0_ = to_bitField0_;
-        onBuilt();
-        return result;
-      }
-
-      @java.lang.Override
-      public Builder clone() {
-        return super.clone();
-      }
-      @java.lang.Override
-      public Builder setField(
-          akka.protobufv3.internal.Descriptors.FieldDescriptor field,
-          java.lang.Object value) {
-        return super.setField(field, value);
-      }
-      @java.lang.Override
-      public Builder clearField(
-          akka.protobufv3.internal.Descriptors.FieldDescriptor field) {
-        return super.clearField(field);
-      }
-      @java.lang.Override
-      public Builder clearOneof(
-          akka.protobufv3.internal.Descriptors.OneofDescriptor oneof) {
-        return super.clearOneof(oneof);
-      }
-      @java.lang.Override
-      public Builder setRepeatedField(
-          akka.protobufv3.internal.Descriptors.FieldDescriptor field,
-          int index, java.lang.Object value) {
-        return super.setRepeatedField(field, index, value);
-      }
-      @java.lang.Override
-      public Builder addRepeatedField(
-          akka.protobufv3.internal.Descriptors.FieldDescriptor field,
-          java.lang.Object value) {
-        return super.addRepeatedField(field, value);
-      }
-      @java.lang.Override
-      public Builder mergeFrom(akka.protobufv3.internal.Message other) {
-        if (other instanceof akka.cluster.ddata.protobuf.msg.ReplicatorMessages.CausalMessageWrapper) {
-          return mergeFrom((akka.cluster.ddata.protobuf.msg.ReplicatorMessages.CausalMessageWrapper)other);
-        } else {
-          super.mergeFrom(other);
-          return this;
-        }
-      }
-
-      public Builder mergeFrom(akka.cluster.ddata.protobuf.msg.ReplicatorMessages.CausalMessageWrapper other) {
-        if (other == akka.cluster.ddata.protobuf.msg.ReplicatorMessages.CausalMessageWrapper.getDefaultInstance()) return this;
-        if (msgsBuilder_ == null) {
-          if (!other.msgs_.isEmpty()) {
-            if (msgs_.isEmpty()) {
-              msgs_ = other.msgs_;
-              bitField0_ = (bitField0_ & ~0x00000001);
-            } else {
-              ensureMsgsIsMutable();
-              msgs_.addAll(other.msgs_);
-            }
-            onChanged();
-          }
-        } else {
-          if (!other.msgs_.isEmpty()) {
-            if (msgsBuilder_.isEmpty()) {
-              msgsBuilder_.dispose();
-              msgsBuilder_ = null;
-              msgs_ = other.msgs_;
-              bitField0_ = (bitField0_ & ~0x00000001);
-              msgsBuilder_ = 
-                akka.protobufv3.internal.GeneratedMessageV3.alwaysUseFieldBuilders ?
-                   getMsgsFieldBuilder() : null;
-            } else {
-              msgsBuilder_.addAllMessages(other.msgs_);
-            }
-          }
-        }
-        if (other.hasVersion()) {
-          mergeVersion(other.getVersion());
-        }
-        if (other.hasFromNode()) {
-          mergeFromNode(other.getFromNode());
-        }
-        this.mergeUnknownFields(other.unknownFields);
-        onChanged();
-        return this;
-      }
-
-      @java.lang.Override
-      public final boolean isInitialized() {
-        if (!hasVersion()) {
-          return false;
-        }
-        if (!hasFromNode()) {
-          return false;
-        }
-        for (int i = 0; i < getMsgsCount(); i++) {
-          if (!getMsgs(i).isInitialized()) {
-            return false;
-          }
-        }
-        if (!getVersion().isInitialized()) {
-          return false;
-        }
-        if (!getFromNode().isInitialized()) {
-          return false;
-        }
-        return true;
-      }
-
-      @java.lang.Override
-      public Builder mergeFrom(
-          akka.protobufv3.internal.CodedInputStream input,
-          akka.protobufv3.internal.ExtensionRegistryLite extensionRegistry)
-          throws java.io.IOException {
-        akka.cluster.ddata.protobuf.msg.ReplicatorMessages.CausalMessageWrapper parsedMessage = null;
-        try {
-          parsedMessage = PARSER.parsePartialFrom(input, extensionRegistry);
-        } catch (akka.protobufv3.internal.InvalidProtocolBufferException e) {
-          parsedMessage = (akka.cluster.ddata.protobuf.msg.ReplicatorMessages.CausalMessageWrapper) e.getUnfinishedMessage();
-          throw e.unwrapIOException();
-        } finally {
-          if (parsedMessage != null) {
-            mergeFrom(parsedMessage);
-          }
-        }
-        return this;
-      }
-      private int bitField0_;
-
-      private java.util.List<akka.cluster.ddata.protobuf.msg.ReplicatorMessages.OtherMessage> msgs_ =
-        java.util.Collections.emptyList();
-      private void ensureMsgsIsMutable() {
-        if (!((bitField0_ & 0x00000001) != 0)) {
-          msgs_ = new java.util.ArrayList<akka.cluster.ddata.protobuf.msg.ReplicatorMessages.OtherMessage>(msgs_);
-          bitField0_ |= 0x00000001;
-         }
-      }
-
-      private akka.protobufv3.internal.RepeatedFieldBuilderV3<
-          akka.cluster.ddata.protobuf.msg.ReplicatorMessages.OtherMessage, akka.cluster.ddata.protobuf.msg.ReplicatorMessages.OtherMessage.Builder, akka.cluster.ddata.protobuf.msg.ReplicatorMessages.OtherMessageOrBuilder> msgsBuilder_;
-
-      /**
-       * <code>repeated .akka.cluster.ddata.OtherMessage msgs = 1;</code>
-       */
-      public java.util.List<akka.cluster.ddata.protobuf.msg.ReplicatorMessages.OtherMessage> getMsgsList() {
-        if (msgsBuilder_ == null) {
-          return java.util.Collections.unmodifiableList(msgs_);
-        } else {
-          return msgsBuilder_.getMessageList();
-        }
-      }
-      /**
-       * <code>repeated .akka.cluster.ddata.OtherMessage msgs = 1;</code>
-       */
-      public int getMsgsCount() {
-        if (msgsBuilder_ == null) {
-          return msgs_.size();
-        } else {
-          return msgsBuilder_.getCount();
-        }
-      }
-      /**
-       * <code>repeated .akka.cluster.ddata.OtherMessage msgs = 1;</code>
-       */
-      public akka.cluster.ddata.protobuf.msg.ReplicatorMessages.OtherMessage getMsgs(int index) {
-        if (msgsBuilder_ == null) {
-          return msgs_.get(index);
-        } else {
-          return msgsBuilder_.getMessage(index);
-        }
-      }
-      /**
-       * <code>repeated .akka.cluster.ddata.OtherMessage msgs = 1;</code>
-       */
-      public Builder setMsgs(
-          int index, akka.cluster.ddata.protobuf.msg.ReplicatorMessages.OtherMessage value) {
-        if (msgsBuilder_ == null) {
-          if (value == null) {
-            throw new NullPointerException();
-          }
-          ensureMsgsIsMutable();
-          msgs_.set(index, value);
-          onChanged();
-        } else {
-          msgsBuilder_.setMessage(index, value);
-        }
-        return this;
-      }
-      /**
-       * <code>repeated .akka.cluster.ddata.OtherMessage msgs = 1;</code>
-       */
-      public Builder setMsgs(
-          int index, akka.cluster.ddata.protobuf.msg.ReplicatorMessages.OtherMessage.Builder builderForValue) {
-        if (msgsBuilder_ == null) {
-          ensureMsgsIsMutable();
-          msgs_.set(index, builderForValue.build());
-          onChanged();
-        } else {
-          msgsBuilder_.setMessage(index, builderForValue.build());
-        }
-        return this;
-      }
-      /**
-       * <code>repeated .akka.cluster.ddata.OtherMessage msgs = 1;</code>
-       */
-      public Builder addMsgs(akka.cluster.ddata.protobuf.msg.ReplicatorMessages.OtherMessage value) {
-        if (msgsBuilder_ == null) {
-          if (value == null) {
-            throw new NullPointerException();
-          }
-          ensureMsgsIsMutable();
-          msgs_.add(value);
-          onChanged();
-        } else {
-          msgsBuilder_.addMessage(value);
-        }
-        return this;
-      }
-      /**
-       * <code>repeated .akka.cluster.ddata.OtherMessage msgs = 1;</code>
-       */
-      public Builder addMsgs(
-          int index, akka.cluster.ddata.protobuf.msg.ReplicatorMessages.OtherMessage value) {
-        if (msgsBuilder_ == null) {
-          if (value == null) {
-            throw new NullPointerException();
-          }
-          ensureMsgsIsMutable();
-          msgs_.add(index, value);
-          onChanged();
-        } else {
-          msgsBuilder_.addMessage(index, value);
-        }
-        return this;
-      }
-      /**
-       * <code>repeated .akka.cluster.ddata.OtherMessage msgs = 1;</code>
-       */
-      public Builder addMsgs(
-          akka.cluster.ddata.protobuf.msg.ReplicatorMessages.OtherMessage.Builder builderForValue) {
-        if (msgsBuilder_ == null) {
-          ensureMsgsIsMutable();
-          msgs_.add(builderForValue.build());
-          onChanged();
-        } else {
-          msgsBuilder_.addMessage(builderForValue.build());
-        }
-        return this;
-      }
-      /**
-       * <code>repeated .akka.cluster.ddata.OtherMessage msgs = 1;</code>
-       */
-      public Builder addMsgs(
-          int index, akka.cluster.ddata.protobuf.msg.ReplicatorMessages.OtherMessage.Builder builderForValue) {
-        if (msgsBuilder_ == null) {
-          ensureMsgsIsMutable();
-          msgs_.add(index, builderForValue.build());
-          onChanged();
-        } else {
-          msgsBuilder_.addMessage(index, builderForValue.build());
-        }
-        return this;
-      }
-      /**
-       * <code>repeated .akka.cluster.ddata.OtherMessage msgs = 1;</code>
-       */
-      public Builder addAllMsgs(
-          java.lang.Iterable<? extends akka.cluster.ddata.protobuf.msg.ReplicatorMessages.OtherMessage> values) {
-        if (msgsBuilder_ == null) {
-          ensureMsgsIsMutable();
-          akka.protobufv3.internal.AbstractMessageLite.Builder.addAll(
-              values, msgs_);
-          onChanged();
-        } else {
-          msgsBuilder_.addAllMessages(values);
-        }
-        return this;
-      }
-      /**
-       * <code>repeated .akka.cluster.ddata.OtherMessage msgs = 1;</code>
-       */
-      public Builder clearMsgs() {
-        if (msgsBuilder_ == null) {
-          msgs_ = java.util.Collections.emptyList();
-          bitField0_ = (bitField0_ & ~0x00000001);
-          onChanged();
-        } else {
-          msgsBuilder_.clear();
-        }
-        return this;
-      }
-      /**
-       * <code>repeated .akka.cluster.ddata.OtherMessage msgs = 1;</code>
-       */
-      public Builder removeMsgs(int index) {
-        if (msgsBuilder_ == null) {
-          ensureMsgsIsMutable();
-          msgs_.remove(index);
-          onChanged();
-        } else {
-          msgsBuilder_.remove(index);
-        }
-        return this;
-      }
-      /**
-       * <code>repeated .akka.cluster.ddata.OtherMessage msgs = 1;</code>
-       */
-      public akka.cluster.ddata.protobuf.msg.ReplicatorMessages.OtherMessage.Builder getMsgsBuilder(
-          int index) {
-        return getMsgsFieldBuilder().getBuilder(index);
-      }
-      /**
-       * <code>repeated .akka.cluster.ddata.OtherMessage msgs = 1;</code>
-       */
-      public akka.cluster.ddata.protobuf.msg.ReplicatorMessages.OtherMessageOrBuilder getMsgsOrBuilder(
-          int index) {
-        if (msgsBuilder_ == null) {
-          return msgs_.get(index);  } else {
-          return msgsBuilder_.getMessageOrBuilder(index);
-        }
-      }
-      /**
-       * <code>repeated .akka.cluster.ddata.OtherMessage msgs = 1;</code>
-       */
-      public java.util.List<? extends akka.cluster.ddata.protobuf.msg.ReplicatorMessages.OtherMessageOrBuilder> 
-           getMsgsOrBuilderList() {
-        if (msgsBuilder_ != null) {
-          return msgsBuilder_.getMessageOrBuilderList();
-        } else {
-          return java.util.Collections.unmodifiableList(msgs_);
-        }
-      }
-      /**
-       * <code>repeated .akka.cluster.ddata.OtherMessage msgs = 1;</code>
-       */
-      public akka.cluster.ddata.protobuf.msg.ReplicatorMessages.OtherMessage.Builder addMsgsBuilder() {
-        return getMsgsFieldBuilder().addBuilder(
-            akka.cluster.ddata.protobuf.msg.ReplicatorMessages.OtherMessage.getDefaultInstance());
-      }
-      /**
-       * <code>repeated .akka.cluster.ddata.OtherMessage msgs = 1;</code>
-       */
-      public akka.cluster.ddata.protobuf.msg.ReplicatorMessages.OtherMessage.Builder addMsgsBuilder(
-          int index) {
-        return getMsgsFieldBuilder().addBuilder(
-            index, akka.cluster.ddata.protobuf.msg.ReplicatorMessages.OtherMessage.getDefaultInstance());
-      }
-      /**
-       * <code>repeated .akka.cluster.ddata.OtherMessage msgs = 1;</code>
-       */
-      public java.util.List<akka.cluster.ddata.protobuf.msg.ReplicatorMessages.OtherMessage.Builder> 
-           getMsgsBuilderList() {
-        return getMsgsFieldBuilder().getBuilderList();
-      }
-      private akka.protobufv3.internal.RepeatedFieldBuilderV3<
-          akka.cluster.ddata.protobuf.msg.ReplicatorMessages.OtherMessage, akka.cluster.ddata.protobuf.msg.ReplicatorMessages.OtherMessage.Builder, akka.cluster.ddata.protobuf.msg.ReplicatorMessages.OtherMessageOrBuilder> 
-          getMsgsFieldBuilder() {
-        if (msgsBuilder_ == null) {
-          msgsBuilder_ = new akka.protobufv3.internal.RepeatedFieldBuilderV3<
-              akka.cluster.ddata.protobuf.msg.ReplicatorMessages.OtherMessage, akka.cluster.ddata.protobuf.msg.ReplicatorMessages.OtherMessage.Builder, akka.cluster.ddata.protobuf.msg.ReplicatorMessages.OtherMessageOrBuilder>(
-                  msgs_,
-                  ((bitField0_ & 0x00000001) != 0),
-                  getParentForChildren(),
-                  isClean());
-          msgs_ = null;
-        }
-        return msgsBuilder_;
-      }
-
-      private akka.cluster.ddata.protobuf.msg.ReplicatorMessages.VersionVector version_;
-      private akka.protobufv3.internal.SingleFieldBuilderV3<
-          akka.cluster.ddata.protobuf.msg.ReplicatorMessages.VersionVector, akka.cluster.ddata.protobuf.msg.ReplicatorMessages.VersionVector.Builder, akka.cluster.ddata.protobuf.msg.ReplicatorMessages.VersionVectorOrBuilder> versionBuilder_;
-      /**
-       * <code>required .akka.cluster.ddata.VersionVector version = 2;</code>
-       * @return Whether the version field is set.
-       */
-      public boolean hasVersion() {
-        return ((bitField0_ & 0x00000002) != 0);
-      }
-      /**
-       * <code>required .akka.cluster.ddata.VersionVector version = 2;</code>
-       * @return The version.
-       */
-      public akka.cluster.ddata.protobuf.msg.ReplicatorMessages.VersionVector getVersion() {
-        if (versionBuilder_ == null) {
-          return version_ == null ? akka.cluster.ddata.protobuf.msg.ReplicatorMessages.VersionVector.getDefaultInstance() : version_;
-        } else {
-          return versionBuilder_.getMessage();
-        }
-      }
-      /**
-       * <code>required .akka.cluster.ddata.VersionVector version = 2;</code>
-       */
-      public Builder setVersion(akka.cluster.ddata.protobuf.msg.ReplicatorMessages.VersionVector value) {
-        if (versionBuilder_ == null) {
-          if (value == null) {
-            throw new NullPointerException();
-          }
-          version_ = value;
-          onChanged();
-        } else {
-          versionBuilder_.setMessage(value);
-        }
-        bitField0_ |= 0x00000002;
-        return this;
-      }
-      /**
-       * <code>required .akka.cluster.ddata.VersionVector version = 2;</code>
-       */
-      public Builder setVersion(
-          akka.cluster.ddata.protobuf.msg.ReplicatorMessages.VersionVector.Builder builderForValue) {
-        if (versionBuilder_ == null) {
-          version_ = builderForValue.build();
-          onChanged();
-        } else {
-          versionBuilder_.setMessage(builderForValue.build());
-        }
-        bitField0_ |= 0x00000002;
-        return this;
-      }
-      /**
-       * <code>required .akka.cluster.ddata.VersionVector version = 2;</code>
-       */
-      public Builder mergeVersion(akka.cluster.ddata.protobuf.msg.ReplicatorMessages.VersionVector value) {
-        if (versionBuilder_ == null) {
-          if (((bitField0_ & 0x00000002) != 0) &&
-              version_ != null &&
-              version_ != akka.cluster.ddata.protobuf.msg.ReplicatorMessages.VersionVector.getDefaultInstance()) {
-            version_ =
-              akka.cluster.ddata.protobuf.msg.ReplicatorMessages.VersionVector.newBuilder(version_).mergeFrom(value).buildPartial();
-          } else {
-            version_ = value;
-          }
-          onChanged();
-        } else {
-          versionBuilder_.mergeFrom(value);
-        }
-        bitField0_ |= 0x00000002;
-        return this;
-      }
-      /**
-       * <code>required .akka.cluster.ddata.VersionVector version = 2;</code>
-       */
-      public Builder clearVersion() {
-        if (versionBuilder_ == null) {
-          version_ = null;
-          onChanged();
-        } else {
-          versionBuilder_.clear();
-        }
-        bitField0_ = (bitField0_ & ~0x00000002);
-        return this;
-      }
-      /**
-       * <code>required .akka.cluster.ddata.VersionVector version = 2;</code>
-       */
-      public akka.cluster.ddata.protobuf.msg.ReplicatorMessages.VersionVector.Builder getVersionBuilder() {
-        bitField0_ |= 0x00000002;
-        onChanged();
-        return getVersionFieldBuilder().getBuilder();
-      }
-      /**
-       * <code>required .akka.cluster.ddata.VersionVector version = 2;</code>
-       */
-      public akka.cluster.ddata.protobuf.msg.ReplicatorMessages.VersionVectorOrBuilder getVersionOrBuilder() {
-        if (versionBuilder_ != null) {
-          return versionBuilder_.getMessageOrBuilder();
-        } else {
-          return version_ == null ?
-              akka.cluster.ddata.protobuf.msg.ReplicatorMessages.VersionVector.getDefaultInstance() : version_;
-        }
-      }
-      /**
-       * <code>required .akka.cluster.ddata.VersionVector version = 2;</code>
-       */
-      private akka.protobufv3.internal.SingleFieldBuilderV3<
-          akka.cluster.ddata.protobuf.msg.ReplicatorMessages.VersionVector, akka.cluster.ddata.protobuf.msg.ReplicatorMessages.VersionVector.Builder, akka.cluster.ddata.protobuf.msg.ReplicatorMessages.VersionVectorOrBuilder> 
-          getVersionFieldBuilder() {
-        if (versionBuilder_ == null) {
-          versionBuilder_ = new akka.protobufv3.internal.SingleFieldBuilderV3<
-              akka.cluster.ddata.protobuf.msg.ReplicatorMessages.VersionVector, akka.cluster.ddata.protobuf.msg.ReplicatorMessages.VersionVector.Builder, akka.cluster.ddata.protobuf.msg.ReplicatorMessages.VersionVectorOrBuilder>(
-                  getVersion(),
-                  getParentForChildren(),
-                  isClean());
-          version_ = null;
-        }
-        return versionBuilder_;
-      }
-
-      private akka.cluster.ddata.protobuf.msg.ReplicatorMessages.UniqueAddress fromNode_;
-      private akka.protobufv3.internal.SingleFieldBuilderV3<
-          akka.cluster.ddata.protobuf.msg.ReplicatorMessages.UniqueAddress, akka.cluster.ddata.protobuf.msg.ReplicatorMessages.UniqueAddress.Builder, akka.cluster.ddata.protobuf.msg.ReplicatorMessages.UniqueAddressOrBuilder> fromNodeBuilder_;
-      /**
-       * <code>required .akka.cluster.ddata.UniqueAddress fromNode = 3;</code>
-       * @return Whether the fromNode field is set.
-       */
-      public boolean hasFromNode() {
-        return ((bitField0_ & 0x00000004) != 0);
-      }
-      /**
-       * <code>required .akka.cluster.ddata.UniqueAddress fromNode = 3;</code>
-       * @return The fromNode.
-       */
-      public akka.cluster.ddata.protobuf.msg.ReplicatorMessages.UniqueAddress getFromNode() {
-        if (fromNodeBuilder_ == null) {
-          return fromNode_ == null ? akka.cluster.ddata.protobuf.msg.ReplicatorMessages.UniqueAddress.getDefaultInstance() : fromNode_;
-        } else {
-          return fromNodeBuilder_.getMessage();
-        }
-      }
-      /**
-       * <code>required .akka.cluster.ddata.UniqueAddress fromNode = 3;</code>
-       */
-      public Builder setFromNode(akka.cluster.ddata.protobuf.msg.ReplicatorMessages.UniqueAddress value) {
-        if (fromNodeBuilder_ == null) {
-          if (value == null) {
-            throw new NullPointerException();
-          }
-          fromNode_ = value;
-          onChanged();
-        } else {
-          fromNodeBuilder_.setMessage(value);
-        }
-        bitField0_ |= 0x00000004;
-        return this;
-      }
-      /**
-       * <code>required .akka.cluster.ddata.UniqueAddress fromNode = 3;</code>
-       */
-      public Builder setFromNode(
-          akka.cluster.ddata.protobuf.msg.ReplicatorMessages.UniqueAddress.Builder builderForValue) {
-        if (fromNodeBuilder_ == null) {
-          fromNode_ = builderForValue.build();
-          onChanged();
-        } else {
-          fromNodeBuilder_.setMessage(builderForValue.build());
-        }
-        bitField0_ |= 0x00000004;
-        return this;
-      }
-      /**
-       * <code>required .akka.cluster.ddata.UniqueAddress fromNode = 3;</code>
-       */
-      public Builder mergeFromNode(akka.cluster.ddata.protobuf.msg.ReplicatorMessages.UniqueAddress value) {
-        if (fromNodeBuilder_ == null) {
-          if (((bitField0_ & 0x00000004) != 0) &&
-              fromNode_ != null &&
-              fromNode_ != akka.cluster.ddata.protobuf.msg.ReplicatorMessages.UniqueAddress.getDefaultInstance()) {
-            fromNode_ =
-              akka.cluster.ddata.protobuf.msg.ReplicatorMessages.UniqueAddress.newBuilder(fromNode_).mergeFrom(value).buildPartial();
-          } else {
-            fromNode_ = value;
-          }
-          onChanged();
-        } else {
-          fromNodeBuilder_.mergeFrom(value);
-        }
-        bitField0_ |= 0x00000004;
-        return this;
-      }
-      /**
-       * <code>required .akka.cluster.ddata.UniqueAddress fromNode = 3;</code>
-       */
-      public Builder clearFromNode() {
-        if (fromNodeBuilder_ == null) {
-          fromNode_ = null;
-          onChanged();
-        } else {
-          fromNodeBuilder_.clear();
-        }
-        bitField0_ = (bitField0_ & ~0x00000004);
-        return this;
-      }
-      /**
-       * <code>required .akka.cluster.ddata.UniqueAddress fromNode = 3;</code>
-       */
-      public akka.cluster.ddata.protobuf.msg.ReplicatorMessages.UniqueAddress.Builder getFromNodeBuilder() {
-        bitField0_ |= 0x00000004;
-        onChanged();
-        return getFromNodeFieldBuilder().getBuilder();
-      }
-      /**
-       * <code>required .akka.cluster.ddata.UniqueAddress fromNode = 3;</code>
-       */
-      public akka.cluster.ddata.protobuf.msg.ReplicatorMessages.UniqueAddressOrBuilder getFromNodeOrBuilder() {
-        if (fromNodeBuilder_ != null) {
-          return fromNodeBuilder_.getMessageOrBuilder();
-        } else {
-          return fromNode_ == null ?
-              akka.cluster.ddata.protobuf.msg.ReplicatorMessages.UniqueAddress.getDefaultInstance() : fromNode_;
-        }
-      }
-      /**
-       * <code>required .akka.cluster.ddata.UniqueAddress fromNode = 3;</code>
-       */
-      private akka.protobufv3.internal.SingleFieldBuilderV3<
-          akka.cluster.ddata.protobuf.msg.ReplicatorMessages.UniqueAddress, akka.cluster.ddata.protobuf.msg.ReplicatorMessages.UniqueAddress.Builder, akka.cluster.ddata.protobuf.msg.ReplicatorMessages.UniqueAddressOrBuilder> 
-          getFromNodeFieldBuilder() {
-        if (fromNodeBuilder_ == null) {
-          fromNodeBuilder_ = new akka.protobufv3.internal.SingleFieldBuilderV3<
-              akka.cluster.ddata.protobuf.msg.ReplicatorMessages.UniqueAddress, akka.cluster.ddata.protobuf.msg.ReplicatorMessages.UniqueAddress.Builder, akka.cluster.ddata.protobuf.msg.ReplicatorMessages.UniqueAddressOrBuilder>(
-                  getFromNode(),
-                  getParentForChildren(),
-                  isClean());
-          fromNode_ = null;
-        }
-        return fromNodeBuilder_;
-      }
-      @java.lang.Override
-      public final Builder setUnknownFields(
-          final akka.protobufv3.internal.UnknownFieldSet unknownFields) {
-        return super.setUnknownFields(unknownFields);
-      }
-
-      @java.lang.Override
-      public final Builder mergeUnknownFields(
-          final akka.protobufv3.internal.UnknownFieldSet unknownFields) {
-        return super.mergeUnknownFields(unknownFields);
-      }
-
-
-      // @@protoc_insertion_point(builder_scope:akka.cluster.ddata.CausalMessageWrapper)
-    }
-
-    // @@protoc_insertion_point(class_scope:akka.cluster.ddata.CausalMessageWrapper)
-    private static final akka.cluster.ddata.protobuf.msg.ReplicatorMessages.CausalMessageWrapper DEFAULT_INSTANCE;
-    static {
-      DEFAULT_INSTANCE = new akka.cluster.ddata.protobuf.msg.ReplicatorMessages.CausalMessageWrapper();
-    }
-
-    public static akka.cluster.ddata.protobuf.msg.ReplicatorMessages.CausalMessageWrapper getDefaultInstance() {
-      return DEFAULT_INSTANCE;
-    }
-
-    @java.lang.Deprecated public static final akka.protobufv3.internal.Parser<CausalMessageWrapper>
-        PARSER = new akka.protobufv3.internal.AbstractParser<CausalMessageWrapper>() {
-      @java.lang.Override
-      public CausalMessageWrapper parsePartialFrom(
-          akka.protobufv3.internal.CodedInputStream input,
-          akka.protobufv3.internal.ExtensionRegistryLite extensionRegistry)
-          throws akka.protobufv3.internal.InvalidProtocolBufferException {
-        return new CausalMessageWrapper(input, extensionRegistry);
-      }
-    };
-
-    public static akka.protobufv3.internal.Parser<CausalMessageWrapper> parser() {
-      return PARSER;
-    }
-
-    @java.lang.Override
-    public akka.protobufv3.internal.Parser<CausalMessageWrapper> getParserForType() {
-      return PARSER;
-    }
-
-    @java.lang.Override
-    public akka.cluster.ddata.protobuf.msg.ReplicatorMessages.CausalMessageWrapper getDefaultInstanceForType() {
-      return DEFAULT_INSTANCE;
-    }
-
-  }
-
   private static final akka.protobufv3.internal.Descriptors.Descriptor
     internal_static_akka_cluster_ddata_Get_descriptor;
   private static final 
@@ -27260,6 +27386,11 @@ public final class ReplicatorMessages {
     akka.protobufv3.internal.GeneratedMessageV3.FieldAccessorTable
       internal_static_akka_cluster_ddata_SnapshotGossip_Entry_fieldAccessorTable;
   private static final akka.protobufv3.internal.Descriptors.Descriptor
+    internal_static_akka_cluster_ddata_SnapshotGossip_Entry2_descriptor;
+  private static final 
+    akka.protobufv3.internal.GeneratedMessageV3.FieldAccessorTable
+      internal_static_akka_cluster_ddata_SnapshotGossip_Entry2_fieldAccessorTable;
+  private static final akka.protobufv3.internal.Descriptors.Descriptor
     internal_static_akka_cluster_ddata_DeltaPropagation_descriptor;
   private static final 
     akka.protobufv3.internal.GeneratedMessageV3.FieldAccessorTable
@@ -27304,11 +27435,6 @@ public final class ReplicatorMessages {
   private static final 
     akka.protobufv3.internal.GeneratedMessageV3.FieldAccessorTable
       internal_static_akka_cluster_ddata_DurableDataEnvelope_fieldAccessorTable;
-  private static final akka.protobufv3.internal.Descriptors.Descriptor
-    internal_static_akka_cluster_ddata_CausalMessageWrapper_descriptor;
-  private static final 
-    akka.protobufv3.internal.GeneratedMessageV3.FieldAccessorTable
-      internal_static_akka_cluster_ddata_CausalMessageWrapper_fieldAccessorTable;
 
   public static akka.protobufv3.internal.Descriptors.FileDescriptor
       getDescriptor() {
@@ -27366,39 +27492,38 @@ public final class ReplicatorMessages {
       "ster.ddata.Gossip.Entry\022\023\n\013toSystemUid\030\003" +
       " \001(\020\022\025\n\rfromSystemUid\030\004 \001(\020\032H\n\005Entry\022\013\n\003" +
       "key\030\001 \002(\t\0222\n\010envelope\030\002 \002(\0132 .akka.clust" +
-      "er.ddata.DataEnvelope\"\231\002\n\016SnapshotGossip" +
+      "er.ddata.DataEnvelope\"\240\003\n\016SnapshotGossip" +
       "\0223\n\010fromNode\030\001 \002(\0132!.akka.cluster.ddata." +
       "UniqueAddress\0228\n\rversionVector\030\002 \002(\0132!.a" +
       "kka.cluster.ddata.VersionVector\0229\n\007entri" +
       "es\030\003 \003(\0132(.akka.cluster.ddata.SnapshotGo" +
-      "ssip.Entry\022\023\n\013toSystemUid\030\004 \001(\020\032H\n\005Entry" +
-      "\022\013\n\003key\030\001 \002(\t\0222\n\010envelope\030\002 \002(\0132 .akka.c" +
-      "luster.ddata.DataEnvelope\"\201\002\n\020DeltaPropa" +
-      "gation\0223\n\010fromNode\030\001 \002(\0132!.akka.cluster." +
-      "ddata.UniqueAddress\022;\n\007entries\030\002 \003(\0132*.a" +
-      "kka.cluster.ddata.DeltaPropagation.Entry" +
-      "\022\r\n\005reply\030\003 \001(\010\032l\n\005Entry\022\013\n\003key\030\001 \002(\t\0222\n" +
-      "\010envelope\030\002 \002(\0132 .akka.cluster.ddata.Dat" +
-      "aEnvelope\022\021\n\tfromSeqNr\030\003 \002(\003\022\017\n\007toSeqNr\030" +
-      "\004 \001(\003\"X\n\rUniqueAddress\022,\n\007address\030\001 \002(\0132" +
-      "\033.akka.cluster.ddata.Address\022\013\n\003uid\030\002 \002(" +
-      "\017\022\014\n\004uid2\030\003 \001(\017\")\n\007Address\022\020\n\010hostname\030\001" +
-      " \002(\t\022\014\n\004port\030\002 \002(\r\"\224\001\n\rVersionVector\0228\n\007" +
-      "entries\030\001 \003(\0132\'.akka.cluster.ddata.Versi" +
-      "onVector.Entry\032I\n\005Entry\022/\n\004node\030\001 \002(\0132!." +
-      "akka.cluster.ddata.UniqueAddress\022\017\n\007vers" +
-      "ion\030\002 \002(\003\"V\n\014OtherMessage\022\027\n\017enclosedMes" +
-      "sage\030\001 \002(\014\022\024\n\014serializerId\030\002 \002(\005\022\027\n\017mess" +
-      "ageManifest\030\004 \001(\014\"\036\n\nStringGSet\022\020\n\010eleme" +
-      "nts\030\001 \003(\t\"\205\001\n\023DurableDataEnvelope\022.\n\004dat" +
-      "a\030\001 \002(\0132 .akka.cluster.ddata.OtherMessag" +
-      "e\022>\n\007pruning\030\002 \003(\0132-.akka.cluster.ddata." +
-      "DataEnvelope.PruningEntry\"\257\001\n\024CausalMess" +
-      "ageWrapper\022.\n\004msgs\030\001 \003(\0132 .akka.cluster." +
-      "ddata.OtherMessage\0222\n\007version\030\002 \002(\0132!.ak" +
-      "ka.cluster.ddata.VersionVector\0223\n\010fromNo" +
-      "de\030\003 \002(\0132!.akka.cluster.ddata.UniqueAddr" +
-      "essB#\n\037akka.cluster.ddata.protobuf.msgH\001"
+      "ssip.Entry\022;\n\010entries2\030\004 \003(\0132).akka.clus" +
+      "ter.ddata.SnapshotGossip.Entry2\022\023\n\013toSys" +
+      "temUid\030\005 \001(\020\032H\n\005Entry\022\013\n\003key\030\001 \002(\t\0222\n\010en" +
+      "velope\030\002 \002(\0132 .akka.cluster.ddata.DataEn" +
+      "velope\032H\n\006Entry2\022\n\n\002to\030\001 \002(\t\0222\n\010messages" +
+      "\030\002 \003(\0132 .akka.cluster.ddata.OtherMessage" +
+      "\"\201\002\n\020DeltaPropagation\0223\n\010fromNode\030\001 \002(\0132" +
+      "!.akka.cluster.ddata.UniqueAddress\022;\n\007en" +
+      "tries\030\002 \003(\0132*.akka.cluster.ddata.DeltaPr" +
+      "opagation.Entry\022\r\n\005reply\030\003 \001(\010\032l\n\005Entry\022" +
+      "\013\n\003key\030\001 \002(\t\0222\n\010envelope\030\002 \002(\0132 .akka.cl" +
+      "uster.ddata.DataEnvelope\022\021\n\tfromSeqNr\030\003 " +
+      "\002(\003\022\017\n\007toSeqNr\030\004 \001(\003\"X\n\rUniqueAddress\022,\n" +
+      "\007address\030\001 \002(\0132\033.akka.cluster.ddata.Addr" +
+      "ess\022\013\n\003uid\030\002 \002(\017\022\014\n\004uid2\030\003 \001(\017\")\n\007Addres" +
+      "s\022\020\n\010hostname\030\001 \002(\t\022\014\n\004port\030\002 \002(\r\"\224\001\n\rVe" +
+      "rsionVector\0228\n\007entries\030\001 \003(\0132\'.akka.clus" +
+      "ter.ddata.VersionVector.Entry\032I\n\005Entry\022/" +
+      "\n\004node\030\001 \002(\0132!.akka.cluster.ddata.Unique" +
+      "Address\022\017\n\007version\030\002 \002(\003\"V\n\014OtherMessage" +
+      "\022\027\n\017enclosedMessage\030\001 \002(\014\022\024\n\014serializerI" +
+      "d\030\002 \002(\005\022\027\n\017messageManifest\030\004 \001(\014\"\036\n\nStri" +
+      "ngGSet\022\020\n\010elements\030\001 \003(\t\"\205\001\n\023DurableData" +
+      "Envelope\022.\n\004data\030\001 \002(\0132 .akka.cluster.dd" +
+      "ata.OtherMessage\022>\n\007pruning\030\002 \003(\0132-.akka" +
+      ".cluster.ddata.DataEnvelope.PruningEntry" +
+      "B#\n\037akka.cluster.ddata.protobuf.msgH\001"
     };
     descriptor = akka.protobufv3.internal.Descriptors.FileDescriptor
       .internalBuildGeneratedFileFrom(descriptorData,
@@ -27511,13 +27636,19 @@ public final class ReplicatorMessages {
     internal_static_akka_cluster_ddata_SnapshotGossip_fieldAccessorTable = new
       akka.protobufv3.internal.GeneratedMessageV3.FieldAccessorTable(
         internal_static_akka_cluster_ddata_SnapshotGossip_descriptor,
-        new java.lang.String[] { "FromNode", "VersionVector", "Entries", "ToSystemUid", });
+        new java.lang.String[] { "FromNode", "VersionVector", "Entries", "Entries2", "ToSystemUid", });
     internal_static_akka_cluster_ddata_SnapshotGossip_Entry_descriptor =
       internal_static_akka_cluster_ddata_SnapshotGossip_descriptor.getNestedTypes().get(0);
     internal_static_akka_cluster_ddata_SnapshotGossip_Entry_fieldAccessorTable = new
       akka.protobufv3.internal.GeneratedMessageV3.FieldAccessorTable(
         internal_static_akka_cluster_ddata_SnapshotGossip_Entry_descriptor,
         new java.lang.String[] { "Key", "Envelope", });
+    internal_static_akka_cluster_ddata_SnapshotGossip_Entry2_descriptor =
+      internal_static_akka_cluster_ddata_SnapshotGossip_descriptor.getNestedTypes().get(1);
+    internal_static_akka_cluster_ddata_SnapshotGossip_Entry2_fieldAccessorTable = new
+      akka.protobufv3.internal.GeneratedMessageV3.FieldAccessorTable(
+        internal_static_akka_cluster_ddata_SnapshotGossip_Entry2_descriptor,
+        new java.lang.String[] { "To", "Messages", });
     internal_static_akka_cluster_ddata_DeltaPropagation_descriptor =
       getDescriptor().getMessageTypes().get(15);
     internal_static_akka_cluster_ddata_DeltaPropagation_fieldAccessorTable = new
@@ -27572,12 +27703,6 @@ public final class ReplicatorMessages {
       akka.protobufv3.internal.GeneratedMessageV3.FieldAccessorTable(
         internal_static_akka_cluster_ddata_DurableDataEnvelope_descriptor,
         new java.lang.String[] { "Data", "Pruning", });
-    internal_static_akka_cluster_ddata_CausalMessageWrapper_descriptor =
-      getDescriptor().getMessageTypes().get(22);
-    internal_static_akka_cluster_ddata_CausalMessageWrapper_fieldAccessorTable = new
-      akka.protobufv3.internal.GeneratedMessageV3.FieldAccessorTable(
-        internal_static_akka_cluster_ddata_CausalMessageWrapper_descriptor,
-        new java.lang.String[] { "Msgs", "Version", "FromNode", });
   }
 
   // @@protoc_insertion_point(outer_class_scope)

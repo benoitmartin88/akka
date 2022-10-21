@@ -255,7 +255,7 @@ class UnifiedCausalConsistencySpec
 
 //          myCausalActorA.causalTell(MyCausalMessage(testActor, i), causalContext, testActor)
 
-          expectMsgType[Ack](10.seconds).i should be(i)
+          expectMsgType[Ack](30.seconds).i should be(i)
         }
       }
 

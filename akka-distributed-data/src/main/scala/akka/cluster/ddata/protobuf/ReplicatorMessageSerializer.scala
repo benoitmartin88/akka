@@ -12,7 +12,7 @@ import akka.cluster.ddata.PruningState.PruningPerformed
 import akka.cluster.ddata.Replicator.Internal._
 import akka.cluster.ddata.Replicator._
 import akka.cluster.ddata.protobuf.msg.{ReplicatorMessages => dm}
-import akka.cluster.ddata.{CausalMessageWrapper, PruningState, ReplicatedData, VersionVector}
+import akka.cluster.ddata.{PruningState, ReplicatedData, VersionVector}
 import akka.cluster.{Member, UniqueAddress}
 import akka.remote.ByteStringUtils
 import akka.serialization.{BaseSerializer, Serialization, SerializerWithStringManifest}
@@ -179,7 +179,6 @@ class ReplicatorMessageSerializer(val system: ExtendedActorSystem)
   val DeltaPropagationManifest = "Q"
   val DeltaNackManifest = "R"
   val SnapshotGossipManifest = "S"
-  val CausalMessageWrapperManifest = "T"
 
   private val fromBinaryMap = collection.immutable.HashMap[String, Array[Byte] => AnyRef](
     GetManifest -> getFromBinary,
@@ -197,7 +196,6 @@ class ReplicatorMessageSerializer(val system: ExtendedActorSystem)
     StatusManifest -> statusFromBinary,
     GossipManifest -> gossipFromBinary,
     SnapshotGossipManifest -> snapshotGossipFromBinary,
-    CausalMessageWrapperManifest -> causalMessageWrapperFromBinary,
     DeltaPropagationManifest -> deltaPropagationFromBinary,
     WriteNackManifest -> (_ => WriteNack),
     DeltaNackManifest -> (_ => DeltaNack),
@@ -221,7 +219,6 @@ class ReplicatorMessageSerializer(val system: ExtendedActorSystem)
     case _: Unsubscribe[_]       => UnsubscribeManifest
     case _: Gossip               => GossipManifest
     case _: SnapshotGossip       => SnapshotGossipManifest
-    case _: CausalMessageWrapper => CausalMessageWrapperManifest
     case WriteNack               => WriteNackManifest
     case DeltaNack               => DeltaNackManifest
     case _ =>
@@ -246,7 +243,6 @@ class ReplicatorMessageSerializer(val system: ExtendedActorSystem)
     case m: Unsubscribe[_]       => unsubscribeToProto(m).toByteArray
     case m: Gossip               => compress(gossipToProto(m))
     case m: SnapshotGossip       => compress(snapshotGossipToProto(m))
-    case m: CausalMessageWrapper => compress(causalMessageWrapperToProto(m))
     case WriteNack               => dm.Empty.getDefaultInstance.toByteArray
     case DeltaNack               => dm.Empty.getDefaultInstance.toByteArray
     case _ =>
@@ -321,6 +317,15 @@ class ReplicatorMessageSerializer(val system: ExtendedActorSystem)
         case (key, data) =>
           b.addEntries(dm.SnapshotGossip.Entry.newBuilder().setKey(key).setEnvelope(dataEnvelopeToProto(data)))
       }
+    if (gossip.messages.nonEmpty)
+      gossip.messages.get.foreach {
+        case (to, q) =>
+          var vector: Vector[dm.OtherMessage] = Vector.empty
+          q.foreach(m => vector = vector :+ otherMessageToProto(m))
+          b.addEntries2(dm.SnapshotGossip.Entry2.newBuilder()
+            .setTo(Serialization.serializedActorPath(to))
+            .addAllMessages(vector.asJava))
+      }
     gossip.toSystemUid.foreach(b.setToSystemUid) // can be None when sending back to a node of version 2.5.21
     b.build()
   }
@@ -328,31 +333,18 @@ class ReplicatorMessageSerializer(val system: ExtendedActorSystem)
   private def snapshotGossipFromBinary(bytes: Array[Byte]): SnapshotGossip = {
     val gossip = dm.SnapshotGossip.parseFrom(decompress(bytes))
     val toSystemUid = if (gossip.hasToSystemUid) Some(gossip.getToSystemUid) else None
+
     SnapshotGossip(
       uniqueAddressFromProto(gossip.getFromNode),
       versionVectorFromProto(gossip.getVersionVector),
       Some(gossip.getEntriesList.asScala.iterator.map(e => e.getKey -> dataEnvelopeFromProto(e.getEnvelope)).toMap),
+      Some(gossip.getEntries2List.asScala.iterator.map(e =>
+        resolveActorRef(e.getTo) -> {
+          val msgs: mutable.Queue[Any] = mutable.Queue.empty
+          e.getMessagesList.forEach(m => msgs.enqueue(otherMessageFromProto(m).asInstanceOf[Any]))
+          msgs
+        }).toMap),
       toSystemUid)
-  }
-
-  private def causalMessageWrapperToProto(msg: CausalMessageWrapper): dm.CausalMessageWrapper = {
-    val b = dm.CausalMessageWrapper.newBuilder()
-    msg.messages.foreach(m => b.addMsgs(otherMessageToProto(m)))
-    b.setVersion(versionVectorToProto(msg.version))
-    b.setFromNode(uniqueAddressToProto(msg.fromNode))
-    b.build()
-  }
-
-  private def causalMessageWrapperFromBinary(bytes: Array[Byte]): CausalMessageWrapper = {
-    val msg = dm.CausalMessageWrapper.parseFrom(decompress(bytes))
-
-    val msgs: mutable.Queue[Any] = mutable.Queue.empty
-    msg.getMsgsList.forEach(m => msgs.enqueue(otherMessageFromProto(m).asInstanceOf[Any]))
-
-    new CausalMessageWrapper(
-      msgs,
-      versionVectorFromProto(msg.getVersion),
-      uniqueAddressFromProto(msg.getFromNode))
   }
 
   private def deltaPropagationToProto(deltaPropagation: DeltaPropagation): dm.DeltaPropagation = {

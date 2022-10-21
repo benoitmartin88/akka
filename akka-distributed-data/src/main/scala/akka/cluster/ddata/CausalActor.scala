@@ -4,11 +4,12 @@
 
 package akka.cluster.ddata
 
-import akka.actor.{ Actor, ActorLogging, ActorRef }
-import akka.cluster.ddata.Replicator.{ CausalChange, SubscribeToCausalChange }
+import akka.actor.{Actor, ActorLogging, ActorRef}
+import akka.cluster.ddata.Replicator.{CausalChange, SubscribeToCausalChange}
 
 import scala.annotation.unused
 import scala.collection.mutable
+
 
 class CausalActor extends Actor with ActorLogging {
   val replicator: ActorRef = DistributedData(context.system).replicator

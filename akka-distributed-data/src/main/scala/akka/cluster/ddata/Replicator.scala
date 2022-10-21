@@ -32,10 +32,8 @@ import scala.concurrent.duration.{FiniteDuration, _}
 import scala.util.control.{NoStackTrace, NonFatal}
 import scala.util.{Failure, Success, Try}
 
-
-class CausalMessageWrapper(var messages: mutable.Queue[Any], var version: VersionVector, var fromNode: UniqueAddress)
-  extends Serializable {}
-
+// No need to be serialized, because it is only sent from Replicator to local actor
+class CausalMessageWrapper(var messages: mutable.Queue[Any], var version: VersionVector, var fromNode: UniqueAddress) {}
 @ccompatUsedUntil213
 object ReplicatorSettings {
 
@@ -1245,6 +1243,7 @@ object Replicator {
         fromNode: UniqueAddress,
         versionVector: VersionVector,
         updatedData: Option[Map[KeyId, DataEnvelope]],
+        messages: Option[Map[ActorRef, mutable.Queue[Any]]],
         toSystemUid: Option[Long])
         extends ReplicatorMessage
         with DestinationSystemUid
@@ -1767,8 +1766,8 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
               receiveStatus(otherDigests, chunk, totChunks, fromSystemUid)
             case Gossip(updatedData, sendBack, _, fromSystemUid) =>
               receiveGossip(updatedData, sendBack, fromSystemUid)
-            case SnapshotGossip(node, vectorClocks, updatedData, _) =>
-              receiveSnapshotGossip(node, vectorClocks, updatedData)
+            case SnapshotGossip(node, vectorClocks, updatedData, messages, _) =>
+              receiveSnapshotGossip(node, vectorClocks, updatedData, messages)
           }
       }
 
@@ -1788,16 +1787,17 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
           }
       }
 
-    case TwoPhaseCommitPrepare(tid, req)         => receiveTwoPhaseCommitPrepare(tid, req)
-    case TwoPhaseCommitCommit(trxn, req)         => receiveTwoPhaseCommitCommit(trxn, req)
-    case TwoPhaseCommitAbort(tid, req)           => receiveTwoPhaseCommitAbort(tid, req)
-    case Get(key, consistency, req, trxn)        => receiveGet(key, consistency, req, trxn)
-    case u @ Update(key, writeC, req, tid)       => receiveUpdate(tid, key, u.modify, writeC, req)
-    case ReadRepair(key, envelope)               => receiveReadRepair(key, envelope)
-    case FlushChanges                            => receiveFlushChanges()
-    case DeltaPropagationTick                    => receiveDeltaPropagationTick()
-    case GossipTick                              => receiveGossipTick()
-    case SnapshotGossipTick                      => triggerSnapshotGossip(Some(snapshotManager.latestStableSnapshotVersionVector), None)
+    case TwoPhaseCommitPrepare(tid, req)   => receiveTwoPhaseCommitPrepare(tid, req)
+    case TwoPhaseCommitCommit(trxn, req)   => receiveTwoPhaseCommitCommit(trxn, req)
+    case TwoPhaseCommitAbort(tid, req)     => receiveTwoPhaseCommitAbort(tid, req)
+    case Get(key, consistency, req, trxn)  => receiveGet(key, consistency, req, trxn)
+    case u @ Update(key, writeC, req, tid) => receiveUpdate(tid, key, u.modify, writeC, req)
+    case ReadRepair(key, envelope)         => receiveReadRepair(key, envelope)
+    case FlushChanges                      => receiveFlushChanges()
+    case DeltaPropagationTick              => receiveDeltaPropagationTick()
+    case GossipTick                        => receiveGossipTick()
+    case SnapshotGossipTick =>
+      triggerSnapshotGossip(Some(snapshotManager.latestStableSnapshotVersionVector), None, None)
     case ClockTick                               => receiveClockTick()
     case Subscribe(key, subscriber)              => receiveSubscribe(key, subscriber)
     case Unsubscribe(key, subscriber)            => receiveUnsubscribe(key, subscriber)
@@ -1844,18 +1844,17 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
         "no transaction with id " + trxn.tid + ": prepare not called or wrong transaction id",
         req)
     } else {
-      triggerSnapshotGossip(Some(trxn.version), Some(snapshotManager.currentTransactions(trxn.tid)._1._2))
 
       // increment commitVV if no shared memory writes AND at least 1 causal message
       val increment = trxn.messages.exists(x => x._2.nonEmpty)
       val commitVV = snapshotManager.commit(trxn.tid, increment)
 
+      triggerSnapshotGossip(
+        Some(commitVV), // TODO: is this correct ? should this be commitVV ?
+        Some(snapshotManager.currentTransactions(trxn.tid)._1._2),
+        Some(trxn.messages.toMap))
 
-      // send causal messages
-      trxn.messages.foreach(kv => {
-        println(">>> sending causal messages to=" + kv._1 + ", commitVV=" + commitVV)
-        kv._1.tell(new CausalMessageWrapper(kv._2, commitVV, selfUniqueAddress), trxn.actor)
-      })
+      snapshotManager.clear(trxn.tid)
 
       replyTo ! TwoPhaseCommitCommitSuccess(req)
     }
@@ -2372,16 +2371,37 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
       selectRandomNode(allNodes.toVector).foreach(gossipTo)
   }
 
-  def triggerSnapshotGossip(version: Option[VersionVector], updatedData: Option[Map[KeyId, DataEnvelope]]): Unit = {
-    println("=================== triggerSnapshotGossip() version=" + version + ", updatedData=" + updatedData)
+  def triggerSnapshotGossip(
+      version: Option[VersionVector],
+      updatedData: Option[Map[KeyId, DataEnvelope]],
+      messages: Option[Map[ActorRef, mutable.Queue[Any]]]): Unit = {
+    println(
+      "=================== triggerSnapshotGossip() version=" + version +
+      ", updatedData=" + updatedData +
+      ", messages=" + messages)
     // broadcast to all known nodes
-    allNodes.foreach(address => snapshotGossipTo(address, version, updatedData)) // TODO: can this be better ?
+
+    allNodes.foreach(address => {
+      // only send messages that concern node
+      val filteredMessages = messages match {
+        case Some(value) =>
+          Some(value.filter(x => {
+//            println(">>> address x=" + UniqueAddress(x._1.path.address, x._1.path.uid.toLong))
+//            println(">>> address y=" + address)
+            x._1.path.address == address.address // TODO: check this
+          }))
+        case None => None
+      }
+
+      snapshotGossipTo(address, version, updatedData, filteredMessages)
+    })
   }
 
   def snapshotGossipTo(
       address: UniqueAddress,
       version: Option[VersionVector],
-      updatedData: Option[Map[KeyId, DataEnvelope]]): Unit = {
+      updatedData: Option[Map[KeyId, DataEnvelope]],
+      messages: Option[Map[ActorRef, mutable.Queue[Any]]]): Unit = {
     val to = replica(address)
     val toSystemUid = Some(address.longUid)
 
@@ -2394,6 +2414,7 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
       selfUniqueAddress,
       vv, // TODO check this !
       updatedData,
+      messages,
       toSystemUid)
 
     to ! msg
@@ -2556,7 +2577,8 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
   def receiveSnapshotGossip(
       from: UniqueAddress,
       versionVector: VersionVector,
-      updatedData: Option[Map[KeyId, DataEnvelope]]): Unit = {
+      updatedData: Option[Map[KeyId, DataEnvelope]],
+      messages: Option[Map[ActorRef, mutable.Queue[Any]]]): Unit = {
     if (log.isDebugEnabled)
       log.debug(
         "Received SnapshotGossip from [{}], from=[{}], versionVector=[{}], updatedData=[{}].",
@@ -2565,12 +2587,20 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
         versionVector,
         updatedData)
 
-    snapshotManager.updateKnownVersionVectors(from, versionVector)  // TODO: this updates GSS, should this be done after updating the data ?
+    println(">>>>>> Received SnapshotGossip messages=" + messages + ", from=" + from)
+
+    snapshotManager.updateKnownVersionVectors(from, versionVector) // TODO: this updates GSS, should this be done after updating the data ?
 
     updatedData match {
       case Some(p) =>
         snapshotManager.updateFromGossip(versionVector, p)
       case _ =>
+    }
+
+    // deliver causal messages to causal actor
+    messages match {
+      case Some(m) => m.foreach(kv => kv._1.forward(new CausalMessageWrapper(kv._2, versionVector, from)))
+      case _       =>
     }
   }
 

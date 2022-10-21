@@ -282,12 +282,17 @@ class SnapshotManager(
       case None => VersionVector.empty // transaction not found
     }
 
-    currentTransactions.remove(tid)
+//    currentTransactions.remove(tid)
     res
   }
 
   def abort(tid: Transaction.TransactionId): Unit = {
     log.debug("SnapshotManager::abort(tid=[{}])", tid)
+    currentTransactions.remove(tid)
+  }
+
+  def clear(tid: Transaction.TransactionId): Unit = {
+    log.debug("SnapshotManager::clear(tid=[{}])", tid)
     currentTransactions.remove(tid)
   }
 

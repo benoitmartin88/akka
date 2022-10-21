@@ -113,10 +113,15 @@ message SnapshotGossip {
     required string key = 1;
     required DataEnvelope envelope = 2;
   }
+  message Entry2 {
+    required string to = 1;
+    repeated OtherMessage messages = 2;
+  }
   required UniqueAddress fromNode = 1;
   required VersionVector versionVector = 2;
   repeated Entry entries = 3;
-  optional sfixed64 toSystemUid = 4;
+  repeated Entry2 entries2 = 4;
+  optional sfixed64 toSystemUid = 5;
 }
 
 message DeltaPropagation {
@@ -165,10 +170,4 @@ message StringGSet {
 message DurableDataEnvelope {
   required OtherMessage data = 1;
   repeated DataEnvelope.PruningEntry pruning = 2;
-}
-
-message CausalMessageWrapper {
-  repeated OtherMessage msgs = 1;
-  required VersionVector version = 2;
-  required UniqueAddress fromNode = 3;
 }
