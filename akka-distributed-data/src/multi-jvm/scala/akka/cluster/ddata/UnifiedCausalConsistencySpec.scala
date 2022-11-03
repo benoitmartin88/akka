@@ -187,7 +187,7 @@ class UnifiedCausalConsistencySpec
             .props((msg) => {
               println(msg)
 
-              new Transaction(replicator, myCausalActorB, (ctx) => {
+              new Transaction(system, myCausalActorB, (ctx) => {
                 ctx.causalTell(msg, myCausalActorC)
               }).commit()
 
@@ -221,7 +221,7 @@ class UnifiedCausalConsistencySpec
             .props((msg) => {
               println("SENDING MESSAGES !! msg=" + msg)
 
-              new Transaction(replicator, myCausalActorA, (ctx) => {
+              new Transaction(system, myCausalActorA, (ctx) => {
                 println(">>>>>>>>>>>>>>>>>>>>>>> ctx=" + ctx)
                 ctx.causalTell(msg, myCausalActorC)
                 ctx.causalTell(msg, myCausalActorB)

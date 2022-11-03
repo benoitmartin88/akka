@@ -4,12 +4,11 @@
 
 package akka.cluster.ddata
 
-import akka.actor.{Actor, ActorLogging, ActorRef}
-import akka.cluster.ddata.Replicator.{CausalChange, SubscribeToCausalChange}
+import akka.actor.{ Actor, ActorLogging, ActorRef }
+import akka.cluster.ddata.Replicator.{ CausalChange, SubscribeToCausalChange }
 
 import scala.annotation.unused
 import scala.collection.mutable
-
 
 class CausalActor extends Actor with ActorLogging {
   val replicator: ActorRef = DistributedData(context.system).replicator
@@ -24,18 +23,18 @@ class CausalActor extends Actor with ActorLogging {
    */
   def receive: Receive = {
     case msg: CausalChange =>
-      println("!!!!! CausalActor::receive() -> CausalChange msg= " + msg)
+//      println("!!!!! CausalActor::receive() -> CausalChange msg= " + msg)
       lastSeenVersion = msg.versionVector
       checkAndDeliverCausalMessages() // check if buffered messages can be delivered.
       onCausalChange(lastSeenVersion)
     case msg: CausalMessageWrapper =>
       if (checkIfCausallyDeliverable(msg)) {
-        println("!!!!! CausalActor::receive() -> DELIVER")
+//        println("!!!!! CausalActor::receive() -> DELIVER")
         msg.messages.foreach(m => self.forward(m))
         checkAndDeliverCausalMessages() // check if buffered messages can be delivered.
       } else {
         // buffer message and wait for causal context to be correct
-        println("!!!!! CausalActor::receive() -> ENQUEUE")
+//        println("!!!!! CausalActor::receive() -> ENQUEUE")
         buffer.enqueue(msg)
       }
   }
@@ -47,13 +46,15 @@ class CausalActor extends Actor with ActorLogging {
     val msgSeqNumber = msg.version.versionAt(fromUniqueAddress)
     val dependencies = msg.version.pruningCleanup(fromUniqueAddress) // TODO check this
 
-    println(
-      ">>>>>>>>>>>> checkIfCausallyDeliverable() lastSeenVersion=" + lastSeenVersion +
-      ", msg.version=" + msg.version +
-      ", fromUniqueAddress=" + fromUniqueAddress +
-      ", msgSeqNumber=" + msgSeqNumber +
-      ", check=" + (msg.version == lastSeenVersion || msg.version < lastSeenVersion) +
-      ", dependencies=" + dependencies)
+    if (log.isDebugEnabled) {
+      log.debug(
+        "checkIfCausallyDeliverable() lastSeenVersion=" + lastSeenVersion +
+        ", msg.version=" + msg.version +
+        ", fromUniqueAddress=" + fromUniqueAddress +
+        ", msgSeqNumber=" + msgSeqNumber +
+        ", check=" + (msg.version == lastSeenVersion || msg.version < lastSeenVersion) +
+        ", dependencies=" + dependencies)
+    }
 
     if ((msg.version == lastSeenVersion || msg.version < lastSeenVersion) && // wait for shared memory
         lastSeenVersion.versionAt(fromUniqueAddress) >= msgSeqNumber && // consecutive sequence number
@@ -70,7 +71,7 @@ class CausalActor extends Actor with ActorLogging {
   private def checkAndDeliverCausalMessages(): Unit = {
     buffer.foreach(msg => {
       if (checkIfCausallyDeliverable(msg)) {
-        println("!!!!! CausalActor::receive() -> DELIVER")
+//        println("!!!!! CausalActor::receive() -> DELIVER")
         msg.messages.foreach(m => self.forward(m))
         buffer = buffer.filter(mm => mm == msg)
       }

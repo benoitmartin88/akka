@@ -1573,7 +1573,7 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
           .scheduleWithFixedDelay(deltaPropagationInterval, deltaPropagationInterval, self, DeltaPropagationTick))
     } else None
 
-  val snapshotManager: SnapshotManager = SnapshotManager(selfUniqueAddress)
+  val snapshotManager: SnapshotManager = SnapshotManager(selfUniqueAddress, log)
 
   // cluster nodes, doesn't contain selfAddress, doesn't contain joining and weaklyUp
   var nodes: immutable.SortedSet[UniqueAddress] = immutable.SortedSet.empty
@@ -2375,10 +2375,13 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
       version: Option[VersionVector],
       updatedData: Option[Map[KeyId, DataEnvelope]],
       messages: Option[Map[ActorRef, mutable.Queue[Any]]]): Unit = {
-    println(
-      "=================== triggerSnapshotGossip() version=" + version +
-      ", updatedData=" + updatedData +
-      ", messages=" + messages)
+    if(log.isDebugEnabled) {
+      log.debug(
+        "triggerSnapshotGossip() version=" + version +
+          ", updatedData=" + updatedData +
+          ", messages=" + messages)
+    }
+
     // broadcast to all known nodes
 
     allNodes.foreach(address => {
@@ -2587,7 +2590,9 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
         versionVector,
         updatedData)
 
-    println(">>>>>> Received SnapshotGossip messages=" + messages + ", from=" + from)
+    if(log.isDebugEnabled) {
+      log.debug("Received SnapshotGossip messages=" + messages + ", from=" + from)
+    }
 
     snapshotManager.updateKnownVersionVectors(from, versionVector) // TODO: this updates GSS, should this be done after updating the data ?
 
@@ -2626,7 +2631,6 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
 
   def receiveSubscribeToCausalChange(subscriber: ActorRef): Unit = {
     log.debug("Replicator::receiveSubscribeToCausalChange(subscriber=" + subscriber + ")")
-    println("Replicator::receiveSubscribeToCausalChange(subscriber=" + subscriber + ")")
     snapshotManager.addSubscriber(subscriber)
   }
 

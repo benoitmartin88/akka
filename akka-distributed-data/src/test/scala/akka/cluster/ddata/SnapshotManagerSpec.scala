@@ -4,9 +4,10 @@
 
 package akka.cluster.ddata
 
-import akka.actor.Address
+import akka.actor.{ ActorSystem, Address }
 import akka.cluster.UniqueAddress
 import akka.cluster.ddata.Replicator.Internal.DataEnvelope
+import akka.event.Logging
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
 
@@ -38,7 +39,9 @@ class SnapshotManagerSpec extends AnyWordSpec with Matchers {
     val vv22 = ManyVersionVector(TreeMap(node1 -> 2, node2 -> 2))
     val vv23 = ManyVersionVector(TreeMap(node1 -> 2, node2 -> 3))
 
-    val snapshotManager = SnapshotManager(node1)
+    val system = ActorSystem("")
+    val log = Logging(system, "SnapshotManager")
+    val snapshotManager = SnapshotManager(node1, log)
 
     "get and update without prior prepare correctly" in {
       // update
@@ -258,7 +261,6 @@ class SnapshotManagerSpec extends AnyWordSpec with Matchers {
       snapshotManager.globalStableSnapshot._2(key1).data should be(c1)
       snapshotManager.globalStableSnapshot._2(key2).data should be(c2)
 
-
       // updateKnownVersionVectors
       snapshotManager.updateKnownVersionVectors(node1, vv2)
       snapshotManager.getKnownVectorClocks should be(Map(node1 -> vv2, node2 -> vv11))
@@ -288,13 +290,12 @@ class SnapshotManagerSpec extends AnyWordSpec with Matchers {
       snapshotManager.localSnapshots(vv22).size should be(1)
       snapshotManager.localSnapshots(vv22)(key1).data should be(c4)
       // check knownVersionVectors
-      snapshotManager.getKnownVectorClocks should be(Map(node1 -> vv2, node2 -> vv21))  // only update knownVectorClocks on gossip without data
+      snapshotManager.getKnownVectorClocks should be(Map(node1 -> vv2, node2 -> vv21)) // only update knownVectorClocks on gossip without data
       // check globalStableSnapshot
       snapshotManager.globalStableSnapshot._1.compareTo(vv2) should be(VersionVector.Same)
       snapshotManager.globalStableSnapshot._2.size should be(2)
       snapshotManager.globalStableSnapshot._2(key1).data should be(c3)
       snapshotManager.globalStableSnapshot._2(key2).data should be(c2)
-
 
       // updateKnownVersionVectors node1 to vv22
       snapshotManager.updateKnownVersionVectors(node1, vv22)
@@ -305,7 +306,7 @@ class SnapshotManagerSpec extends AnyWordSpec with Matchers {
       snapshotManager.localSnapshots(vv22).size should be(1)
       snapshotManager.localSnapshots(vv22)(key1).data should be(c4)
       // check knownVersionVectors
-      snapshotManager.getKnownVectorClocks should be(Map(node1 -> vv22, node2 -> vv21))  // only update knownVectorClocks on gossip without data
+      snapshotManager.getKnownVectorClocks should be(Map(node1 -> vv22, node2 -> vv21)) // only update knownVectorClocks on gossip without data
       // check globalStableSnapshot
       snapshotManager.globalStableSnapshot._1.compareTo(vv21) should be(VersionVector.Same)
       snapshotManager.globalStableSnapshot._2.size should be(2)
@@ -319,7 +320,7 @@ class SnapshotManagerSpec extends AnyWordSpec with Matchers {
       // check committedTransactions
       snapshotManager.localSnapshots.size should be(0)
       // check knownVersionVectors
-      snapshotManager.getKnownVectorClocks should be(Map(node1 -> vv22, node2 -> vv22))  // only update knownVectorClocks on gossip without data
+      snapshotManager.getKnownVectorClocks should be(Map(node1 -> vv22, node2 -> vv22)) // only update knownVectorClocks on gossip without data
       // check globalStableSnapshot
       snapshotManager.globalStableSnapshot._1.compareTo(vv22) should be(VersionVector.Same)
       snapshotManager.globalStableSnapshot._2.size should be(2)
@@ -335,7 +336,7 @@ class SnapshotManagerSpec extends AnyWordSpec with Matchers {
       snapshotManager.localSnapshots(vv23).size should be(1)
       snapshotManager.localSnapshots(vv23)(key2).data should be(c3)
       // check knownVersionVectors
-      snapshotManager.getKnownVectorClocks should be(Map(node1 -> vv22, node2 -> vv22))  // only update knownVectorClocks on gossip without data
+      snapshotManager.getKnownVectorClocks should be(Map(node1 -> vv22, node2 -> vv22)) // only update knownVectorClocks on gossip without data
       // check globalStableSnapshot
       snapshotManager.globalStableSnapshot._1.compareTo(vv22) should be(VersionVector.Same)
       snapshotManager.globalStableSnapshot._2.size should be(2)
@@ -350,7 +351,7 @@ class SnapshotManagerSpec extends AnyWordSpec with Matchers {
       snapshotManager.localSnapshots(vv23).size should be(1)
       snapshotManager.localSnapshots(vv23)(key2).data should be(c4)
       // check knownVersionVectors
-      snapshotManager.getKnownVectorClocks should be(Map(node1 -> vv22, node2 -> vv22))  // only update knownVectorClocks on gossip without data
+      snapshotManager.getKnownVectorClocks should be(Map(node1 -> vv22, node2 -> vv22)) // only update knownVectorClocks on gossip without data
       // check globalStableSnapshot
       snapshotManager.globalStableSnapshot._1.compareTo(vv22) should be(VersionVector.Same)
       snapshotManager.globalStableSnapshot._2.size should be(2)
@@ -366,7 +367,7 @@ class SnapshotManagerSpec extends AnyWordSpec with Matchers {
       snapshotManager.localSnapshots(vv23)(key1).data should be(c5)
       snapshotManager.localSnapshots(vv23)(key2).data should be(c4)
       // check knownVersionVectors
-      snapshotManager.getKnownVectorClocks should be(Map(node1 -> vv22, node2 -> vv22))  // only update knownVectorClocks on gossip without data
+      snapshotManager.getKnownVectorClocks should be(Map(node1 -> vv22, node2 -> vv22)) // only update knownVectorClocks on gossip without data
       // check globalStableSnapshot
       snapshotManager.globalStableSnapshot._1.compareTo(vv22) should be(VersionVector.Same)
       snapshotManager.globalStableSnapshot._2.size should be(2)
@@ -383,7 +384,7 @@ class SnapshotManagerSpec extends AnyWordSpec with Matchers {
       snapshotManager.localSnapshots(vv23)(key1).data should be(c5)
       snapshotManager.localSnapshots(vv23)(key2).data should be(c4)
       // check knownVersionVectors
-      snapshotManager.getKnownVectorClocks should be(Map(node1 -> vv22, node2 -> vv23))  // only update knownVectorClocks on gossip without data
+      snapshotManager.getKnownVectorClocks should be(Map(node1 -> vv22, node2 -> vv23)) // only update knownVectorClocks on gossip without data
       // check globalStableSnapshot
       snapshotManager.globalStableSnapshot._1.compareTo(vv22) should be(VersionVector.Same)
       snapshotManager.globalStableSnapshot._2.size should be(2)
@@ -397,7 +398,7 @@ class SnapshotManagerSpec extends AnyWordSpec with Matchers {
       // check committedTransactions
       snapshotManager.localSnapshots.size should be(0)
       // check knownVersionVectors
-      snapshotManager.getKnownVectorClocks should be(Map(node1 -> vv23, node2 -> vv23))  // only update knownVectorClocks on gossip without data
+      snapshotManager.getKnownVectorClocks should be(Map(node1 -> vv23, node2 -> vv23)) // only update knownVectorClocks on gossip without data
       // check globalStableSnapshot
       snapshotManager.globalStableSnapshot._1.compareTo(vv23) should be(VersionVector.Same)
       snapshotManager.globalStableSnapshot._2.size should be(2)
