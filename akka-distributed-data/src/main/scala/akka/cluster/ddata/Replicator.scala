@@ -1570,7 +1570,7 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
           .scheduleWithFixedDelay(deltaPropagationInterval, deltaPropagationInterval, self, DeltaPropagationTick))
     } else None
 
-  val snapshotManager: SnapshotManager = SnapshotManager(selfUniqueAddress)
+  val snapshotManager: SnapshotManager = SnapshotManager(selfUniqueAddress, log)
 
   // cluster nodes, doesn't contain selfAddress, doesn't contain joining and weaklyUp
   var nodes: immutable.SortedSet[UniqueAddress] = immutable.SortedSet.empty
@@ -1821,10 +1821,10 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
 //    snapshotManager.currentTransactions.contains(tid)
 
     val reply = if (snapshotManager.currentTransactions.contains(tid)) {
-      log.debug("Transaction id " + tid + " already inflight")
+      if (log.isDebugEnabled) log.debug("Transaction id " + tid + " already inflight")
       TwoPhaseCommitPrepareError("Transaction id " + tid + " already inflight", req)
     } else {
-      log.debug("Transaction id " + tid + " prepare OK")
+      if (log.isDebugEnabled) log.debug("Transaction id " + tid + " prepare OK")
       val snapshot = snapshotManager.transactionPrepare(tid)
       TwoPhaseCommitPrepareSuccess(snapshot._1, req)
     }
@@ -1841,7 +1841,7 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
         req)
     } else {
       triggerSnapshotGossip(Some(trxn.version), Some(snapshotManager.currentTransactions(trxn.tid)._1._2))
-      snapshotManager.commit(trxn.tid)  // TODO: return commitVV
+      snapshotManager.commit(trxn.tid) // TODO: return commitVV
 
       replyTo ! TwoPhaseCommitCommitSuccess(req)
     }
@@ -1861,7 +1861,8 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
    * 4) check snapshot
    */
   def receiveGet(key: KeyR, consistency: ReadConsistency, req: Option[Any], trxn: Option[Transaction.Context]): Unit = {
-    log.debug("Received Get for key [{}] on transaction [{}]. replyTo=[{}]", key, trxn, replyTo)
+    if (log.isDebugEnabled)
+      log.debug("Received Get for key [{}] on transaction [{}]. replyTo=[{}]", key, trxn, replyTo)
 
     if (trxn.isEmpty) {
       // not a transaction
@@ -2551,7 +2552,7 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
         versionVector,
         updatedData)
 
-    snapshotManager.updateKnownVersionVectors(from, versionVector)  // TODO: this updates GSS, should this be done after updating the data ?
+    snapshotManager.updateKnownVersionVectors(from, versionVector) // TODO: this updates GSS, should this be done after updating the data ?
 
     updatedData match {
       case Some(p) =>
@@ -2581,8 +2582,8 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
     newSubscribers.exists { case (_, s) => s.contains(subscriber) }
 
   def receiveSubscribeToCausalChange(subscriber: ActorRef): Unit = {
-    log.debug("Replicator::receiveSubscribeToCausalChange(subscriber=" + subscriber + ")")
-    println("Replicator::receiveSubscribeToCausalChange(subscriber=" + subscriber + ")")
+    if (log.isDebugEnabled)
+      log.debug("Replicator::receiveSubscribeToCausalChange(subscriber=" + subscriber + ")")
     snapshotManager.addSubscriber(subscriber)
   }
 

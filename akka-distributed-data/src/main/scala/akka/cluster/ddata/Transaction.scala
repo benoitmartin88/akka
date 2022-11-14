@@ -4,11 +4,11 @@
 
 package akka.cluster.ddata
 
-import akka.actor.{ActorContext, ActorRef}
+import akka.actor.{ActorRef, ActorSystem}
 import akka.cluster.ddata.Replicator._
+import akka.event.{Logging, LoggingAdapter}
 import akka.pattern.ask
 import akka.util.Timeout
-import org.slf4j.{Logger, LoggerFactory}
 
 import scala.concurrent.Await
 import scala.concurrent.duration.DurationInt
@@ -43,28 +43,29 @@ object Transaction {
  * - remove replicator from ctor arguments
  * - auto commit at the end of the transaction scope
  */
-final case class Transaction(replicator: ActorRef, actor: ActorRef, operations: (Transaction.Context) => Unit) {
-  import akka.cluster.ddata.Transaction.{ Context, TransactionId }
+final case class Transaction(system: ActorSystem, actor: ActorRef, operations: (Transaction.Context) => Unit) {
+  import akka.cluster.ddata.Transaction.{Context, TransactionId}
 
-  def apply(actorContext: ActorContext, operations: (Transaction.Context) => Unit): Transaction = {
-//    val system = actorContext.system
+//  def apply(actorContext: ActorContext, operations: (Transaction.Context) => Unit): Transaction = {
+////    val system = actorContext.system
+//
+//    val replicator = DistributedData(actorContext.system).replicator
+////    val replicator = system.actorOf(
+////      Replicator.props(ReplicatorSettings(system).withGossipInterval(1.second).withMaxDeltaElements(10)),
+////      "replicator")
+//    Transaction(replicator, actorContext.self, operations)
+//  }
 
-    val replicator = DistributedData(actorContext.system).replicator
-//    val replicator = system.actorOf(
-//      Replicator.props(ReplicatorSettings(system).withGossipInterval(1.second).withMaxDeltaElements(10)),
-//      "replicator")
-    Transaction(replicator, actorContext.self, operations)
-  }
-
+  val replicator = DistributedData(system).replicator
   val context: Context = Context(replicator, actor)
   val id: TransactionId = context.tid
-  val log: Logger = LoggerFactory.getLogger("akka.cluster.ddata.Transaction")
+  val log: LoggingAdapter = Logging(system, Transaction.getClass)
   private implicit val askTimeout: Timeout = 5.seconds
 
   prepare()
 
   private def prepare(): Boolean = {
-    log.debug("[{}] - prepare()", id)
+    if(log.isDebugEnabled) log.debug("[{}] - prepare()", id)
     assert(context.version.isEmpty)
 
     try {
@@ -92,13 +93,14 @@ final case class Transaction(replicator: ActorRef, actor: ActorRef, operations: 
    * @return
    */
   def commit(): Boolean = {
-    log.debug("[{}] - commit() [{}]", id, context.version)
+    if(log.isDebugEnabled) log.debug("[{}] - commit() [{}]", id, context.version)
 
     try {
       operations(context)
 
       Await.result(
-        (replicator ? TwoPhaseCommitCommit(context)).mapTo[TwoPhaseCommitCommitResponse], askTimeout.duration) match {
+        (replicator ? TwoPhaseCommitCommit(context)).mapTo[TwoPhaseCommitCommitResponse],
+        askTimeout.duration) match {
         case TwoPhaseCommitCommitSuccess(_) => true
         case TwoPhaseCommitCommitError(msg, _) =>
           log.error(msg)

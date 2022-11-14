@@ -4,9 +4,10 @@
 
 package akka.cluster.ddata
 
-import akka.actor.Address
+import akka.actor.{ActorSystem, Address}
 import akka.cluster.UniqueAddress
 import akka.cluster.ddata.Replicator.Internal.DataEnvelope
+import akka.event.Logging
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
 
@@ -38,7 +39,9 @@ class SnapshotManagerSpec extends AnyWordSpec with Matchers {
     val vv22 = ManyVersionVector(TreeMap(node1 -> 2, node2 -> 2))
     val vv23 = ManyVersionVector(TreeMap(node1 -> 2, node2 -> 3))
 
-    val snapshotManager = SnapshotManager(node1)
+    val system = ActorSystem("")
+    val log = Logging(system, "SnapshotManager")
+    val snapshotManager = SnapshotManager(node1, log)
 
     "get and update without prior prepare correctly" in {
       // update

@@ -9,7 +9,7 @@ import akka.cluster.UniqueAddress
 import akka.cluster.ddata.Key.KeyId
 import akka.cluster.ddata.Replicator.Internal.DataEnvelope
 import akka.cluster.ddata.SnapshotManager.{DataEntries, Snapshot}
-import org.slf4j.{Logger, LoggerFactory}
+import akka.event.LoggingAdapter
 
 import scala.collection.mutable
 
@@ -20,11 +20,10 @@ object SnapshotManager {
   type DataEntries = Map[KeyId, DataEnvelope]
   type Snapshot = (VersionVector, DataEntries)
 
-  val log: Logger = LoggerFactory.getLogger("akka.cluster.ddata.SnapshotManager")
-
-  def apply(selfUniqueAddress: UniqueAddress): SnapshotManager = {
+  def apply(selfUniqueAddress: UniqueAddress, log: LoggingAdapter): SnapshotManager = {
     new SnapshotManager(
       selfUniqueAddress,
+      log,
       mutable.Map.empty,
       (VersionVector(selfUniqueAddress, 0), Map.empty),
       mutable.TreeMap.empty[VersionVector, DataEntries](VersionVectorOrdering),
@@ -35,6 +34,7 @@ object SnapshotManager {
 
 class SnapshotManager(
     val selfUniqueAddress: UniqueAddress,
+    val log: LoggingAdapter,
     private val knownVersionVectors: mutable.Map[UniqueAddress, VersionVector],
     var globalStableSnapshot: Snapshot,
     var localSnapshots: mutable.TreeMap[VersionVector, DataEntries], // committed data but not yet merged into GSS
@@ -44,7 +44,7 @@ class SnapshotManager(
   import SnapshotManager._
 
   def transactionPrepare(tid: Transaction.TransactionId): Snapshot = {
-    log.debug("SnapshotManager::transactionPrepare(tid=[{}])", tid)
+    if (log.isDebugEnabled) log.debug("SnapshotManager::transactionPrepare(tid=[{}])", tid)
     val res = (latestStableSnapshotVersionVector, Map.empty[KeyId, DataEnvelope])
     currentTransactions.update(tid, (res, false))
     res
@@ -73,17 +73,17 @@ class SnapshotManager(
   }
 
   private[akka] def addSubscriber(subscriber: ActorRef): Unit = {
-    log.debug("SnapshotManager::addSubscriber(subscriber=[{}])", subscriber)
+    if (log.isDebugEnabled) log.debug("SnapshotManager::addSubscriber(subscriber=[{}])", subscriber)
     subscribers.add(subscriber)
   }
 
   private[akka] def removeSubscriber(subscriber: ActorRef): Unit = {
-    log.debug("SnapshotManager::removeSubscriber(subscriber=[{}])", subscriber)
+    if (log.isDebugEnabled) log.debug("SnapshotManager::removeSubscriber(subscriber=[{}])", subscriber)
     subscribers.remove(subscriber)
   }
 
   private def sendChangeToAllSubscribers(vv: VersionVector): Unit = {
-    log.debug("SnapshotManager::sendChangeToAllSubscribers(vv=[{}])", vv)
+    if (log.isDebugEnabled) log.debug("SnapshotManager::sendChangeToAllSubscribers(vv=[{}])", vv)
     subscribers.foreach(subscriber => subscriber ! Replicator.CausalChange(vv))
   }
 
@@ -92,11 +92,12 @@ class SnapshotManager(
   def updateKnownVersionVectors(node: UniqueAddress, versionVector: VersionVector): Unit = {
     knownVersionVectors.update(node, versionVector)
     updateGlobalStableSnapshot()
-    log.debug(
-      "SnapshotManager::updateKnownVersionVectors(node=[{}], versionVector=[{}]): GSS=[{}]",
-      node,
-      versionVector,
-      globalStableSnapshot)
+    if (log.isDebugEnabled)
+      log.debug(
+        "SnapshotManager::updateKnownVersionVectors(node=[{}], versionVector=[{}]): GSS=[{}]",
+        node,
+        versionVector,
+        globalStableSnapshot)
   }
 
   def updateGlobalStableSnapshot(): Unit = {
@@ -169,7 +170,7 @@ class SnapshotManager(
    * @return value associated to the given key
    */
   def get(tid: Transaction.TransactionId, key: KeyId): Option[ReplicatedData] = {
-    log.debug("SnapshotManager::get(tid=[{}], key=[{}])", tid, key)
+    if (log.isDebugEnabled) log.debug("SnapshotManager::get(tid=[{}], key=[{}])", tid, key)
 
     // apply currentTransactions
     currentTransactions.get(tid) match {
@@ -217,12 +218,12 @@ class SnapshotManager(
   }
 
   def update(tid: Transaction.TransactionId, updatedData: Map[KeyId, DataEnvelope]): Unit = {
-    log.debug("SnapshotManager::update(tid=[{}], updatedData=[{}])", tid, updatedData)
+    if (log.isDebugEnabled) log.debug("SnapshotManager::update(tid=[{}], updatedData=[{}])", tid, updatedData)
     updatedData.foreach(p => update(tid, p._1, p._2))
   }
 
   def update(tid: Transaction.TransactionId, key: KeyId, envelope: DataEnvelope): Unit = {
-    log.debug("SnapshotManager::update(tid=[{}], key=[{}], envelope=[{}])", tid, key, envelope)
+    if (log.isDebugEnabled) log.debug("SnapshotManager::update(tid=[{}], key=[{}], envelope=[{}])", tid, key, envelope)
     currentTransactions.get(tid) match {
       case Some(d) =>
         val newData = d._1._2.updated(key, envelope)
@@ -232,7 +233,8 @@ class SnapshotManager(
   }
 
   def updateFromGossip(version: VersionVector, updatedData: Map[KeyId, DataEnvelope]): Unit = {
-    log.debug("SnapshotManager::updateFromGossip(version=[{}], updatedData=[{}])", version, updatedData)
+    if (log.isDebugEnabled)
+      log.debug("SnapshotManager::updateFromGossip(version=[{}], updatedData=[{}])", version, updatedData)
 
     localSnapshots.get(version) match {
       case Some(localSnapshot) =>
@@ -250,7 +252,7 @@ class SnapshotManager(
   }
 
   def commit(tid: Transaction.TransactionId): VersionVector = {
-    log.debug("SnapshotManager::commit(tid=[{}])", tid)
+    if (log.isDebugEnabled) log.debug("SnapshotManager::commit(tid=[{}])", tid)
 
     val res = currentTransactions.get(tid) match {
       case Some(currentTransaction) =>
@@ -278,7 +280,7 @@ class SnapshotManager(
   }
 
   def abort(tid: Transaction.TransactionId): Unit = {
-    log.debug("SnapshotManager::abort(tid=[{}])", tid)
+    if (log.isDebugEnabled) log.debug("SnapshotManager::abort(tid=[{}])", tid)
     currentTransactions.remove(tid)
   }
 

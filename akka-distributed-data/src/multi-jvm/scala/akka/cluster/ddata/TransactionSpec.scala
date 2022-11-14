@@ -202,7 +202,7 @@ class TransactionSpec extends MultiNodeSpec(TransactionSpec) with STMultiNodeSpe
   "Transaction" must {
 
     "instantiate correctly" in {
-      val t1 = new Transaction(replicator, testActor, (_) => None)
+      val t1 = new Transaction(system, testActor, (_) => None)
       t1.id shouldBe a[TransactionId]
       t1.id should not be None
       t1.context.tid should not be (None)
@@ -210,16 +210,16 @@ class TransactionSpec extends MultiNodeSpec(TransactionSpec) with STMultiNodeSpe
       t1.context.replicator should be(replicator)
       t1.context.actor should be(testActor)
 
-      val t2 = new Transaction(replicator, testActor, (_) => None)
+      val t2 = new Transaction(system, testActor, (_) => None)
       t1.id should not be None
       (t1.id should not).equal(t2.id)
     }
 
     "commit without error when no operations" in {
-      val t1 = new Transaction(replicator, testActor, (_) => {})
+      val t1 = new Transaction(system, testActor, (_) => {})
       t1.commit() should be(true)
 
-      val t2 = new Transaction(replicator, testActor, (_) => None)
+      val t2 = new Transaction(system, testActor, (_) => None)
       t2.commit() should be(true)
     }
 
@@ -227,15 +227,15 @@ class TransactionSpec extends MultiNodeSpec(TransactionSpec) with STMultiNodeSpe
     // TODO: delete key
 
     "abort without error when no operations" in {
-      val t1 = new Transaction(replicator, testActor, (_) => {})
+      val t1 = new Transaction(system, testActor, (_) => {})
       t1.abort() // TODO: what should be asserted ?
 
-      val t2 = new Transaction(replicator, testActor, (_) => None)
+      val t2 = new Transaction(system, testActor, (_) => None)
       t2.abort()
     }
 
     "read own write in same transaction on same node" in {
-      val t1 = new Transaction(replicator, testActor, (ctx) => {
+      val t1 = new Transaction(system, testActor, (ctx) => {
         val KEY = FlagKey("F1")
         var f1 = Flag()
 
@@ -256,7 +256,7 @@ class TransactionSpec extends MultiNodeSpec(TransactionSpec) with STMultiNodeSpe
     }
 
     "read own write in second transaction on same node" in {
-      val t1 = new Transaction(replicator, testActor, (ctx) => {
+      val t1 = new Transaction(system, testActor, (ctx) => {
         val KEY = FlagKey("F1")
         val f1 = Flag().switchOn
 
@@ -290,7 +290,7 @@ class TransactionSpec extends MultiNodeSpec(TransactionSpec) with STMultiNodeSpe
         On first node, write data
        */
       runOn(first) {
-        val t1 = new Transaction(replicator, testActor, (ctx) => {
+        val t1 = new Transaction(system, testActor, (ctx) => {
           // update
           ctx.update(KEY)(flag)
           expectMsg(UpdateSuccess(KEY, None))
@@ -302,7 +302,7 @@ class TransactionSpec extends MultiNodeSpec(TransactionSpec) with STMultiNodeSpe
         t1.commit() should be(true)
 
         // local read from previous transaction
-        val t2 = new Transaction(replicator, testActor, (ctx) => {
+        val t2 = new Transaction(system, testActor, (ctx) => {
           ctx.get(KEY)
           expectMsg(GetSuccess(KEY, None)(flag)).dataValue should be(flag)
         })
@@ -317,7 +317,7 @@ class TransactionSpec extends MultiNodeSpec(TransactionSpec) with STMultiNodeSpe
       runOn(second) {
         within(10.seconds) {
           awaitAssert({
-            val t = new Transaction(replicator, testActor, (ctx) => {
+            val t = new Transaction(system, testActor, (ctx) => {
               ctx.get(KEY)
               expectMsg(GetSuccess(KEY, None)(flag))
             })
@@ -348,7 +348,7 @@ class TransactionSpec extends MultiNodeSpec(TransactionSpec) with STMultiNodeSpe
       runOn(first, second, third) {
         var c = GCounter()
 
-        val t = new Transaction(replicator, testActor, (ctx) => {
+        val t = new Transaction(system, testActor, (ctx) => {
           for (_ <- 0 until 100) {
             c :+= 1
             ctx.update(KeyG)(c)
@@ -363,7 +363,7 @@ class TransactionSpec extends MultiNodeSpec(TransactionSpec) with STMultiNodeSpe
       runOn(first, second, third) {
         within(20.seconds) {
           awaitAssert({
-            val t = new Transaction(replicator, testActor, (ctx) => {
+            val t = new Transaction(system, testActor, (ctx) => {
               ctx.get(KeyG)
               val c = expectMsgPF() { case g @ GetSuccess(KeyG, _) => g.get(KeyG) }
               c.value should be(3 * 100)
@@ -396,7 +396,7 @@ class TransactionSpec extends MultiNodeSpec(TransactionSpec) with STMultiNodeSpe
 
         for (_ <- 0 until 100) {
 
-          val t = new Transaction(replicator, testActor, (ctx) => {
+          val t = new Transaction(system, testActor, (ctx) => {
             c :+= 1
             ctx.update(KeyG)(c)
             expectMsg(UpdateSuccess(KeyG, None))
@@ -410,7 +410,7 @@ class TransactionSpec extends MultiNodeSpec(TransactionSpec) with STMultiNodeSpe
       runOn(first, second, third) {
         within(20.seconds) {
           awaitAssert({
-            val t = new Transaction(replicator, testActor, (ctx) => {
+            val t = new Transaction(system, testActor, (ctx) => {
               ctx.get(KeyG)
               val c = expectMsgPF() { case g @ GetSuccess(KeyG, _) => g.get(KeyG) }
               c.value should be(3 * 100)
