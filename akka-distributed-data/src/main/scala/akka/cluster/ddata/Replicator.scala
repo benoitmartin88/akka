@@ -1820,15 +1820,15 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
   }
 
   def receiveTwoPhaseCommitPrepare(tid: TransactionId, req: Option[Any]): Unit = {
-    log.info("Received TwoPhaseCommitPrepare for transaction [{}].", tid)
+    if(log.isDebugEnabled) log.debug("Received TwoPhaseCommitPrepare for transaction [{}].", tid)
 
 //    snapshotManager.currentTransactions.contains(tid)
 
     val reply = if (snapshotManager.currentTransactions.contains(tid)) {
-      log.debug("Transaction id " + tid + " already inflight")
+      if(log.isDebugEnabled) log.debug("Transaction id " + tid + " already inflight")
       TwoPhaseCommitPrepareError("Transaction id " + tid + " already inflight", req)
     } else {
-      log.debug("Transaction id " + tid + " prepare OK")
+      if(log.isDebugEnabled) log.debug("Transaction id " + tid + " prepare OK")
       val snapshot = snapshotManager.transactionPrepare(tid)
       TwoPhaseCommitPrepareSuccess(snapshot._1, req)
     }
@@ -1837,7 +1837,7 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
   }
 
   def receiveTwoPhaseCommitCommit(trxn: Transaction.Context, req: Option[Any]): Unit = {
-    log.info("Received TwoPhaseCommitCommit for transaction [{}].", trxn)
+    if(log.isDebugEnabled) log.debug("Received TwoPhaseCommitCommit for transaction [{}].", trxn)
 
     if (!snapshotManager.currentTransactions.contains(trxn.tid)) {
       replyTo ! TwoPhaseCommitCommitError(
@@ -1861,7 +1861,7 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
   }
 
   def receiveTwoPhaseCommitAbort(tid: TransactionId, req: Option[Any]): Unit = {
-    log.info("Received TwoPhaseCommitAbort for transaction [{}].", tid)
+    if(log.isDebugEnabled) log.debug("Received TwoPhaseCommitAbort for transaction [{}].", tid)
     snapshotManager.abort(tid)
     replyTo ! TwoPhaseCommitAbortSuccess(req)
   }
@@ -1874,7 +1874,7 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
    * 4) check snapshot
    */
   def receiveGet(key: KeyR, consistency: ReadConsistency, req: Option[Any], trxn: Option[Transaction.Context]): Unit = {
-    log.debug("Received Get for key [{}] on transaction [{}]. replyTo=[{}]", key, trxn, replyTo)
+    if(log.isDebugEnabled) log.debug("Received Get for key [{}] on transaction [{}]. replyTo=[{}]", key, trxn, replyTo)
 
     if (trxn.isEmpty) {
       // not a transaction
@@ -2383,21 +2383,26 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
     }
 
     // broadcast to all known nodes
+    if(allNodes.nonEmpty) {
+      allNodes.foreach(address => {
+        // only send messages that concern node
+        val filteredMessages = messages match {
+          case Some(value) =>
+            Some(value.filter(x => {
+              //            println(">>> address x=" + UniqueAddress(x._1.path.address, x._1.path.uid.toLong))
+              //            println(">>> address y=" + address)
+              x._1.path.address == address.address // TODO: check this
+            }))
+          case None => None
+        }
 
-    allNodes.foreach(address => {
-      // only send messages that concern node
-      val filteredMessages = messages match {
-        case Some(value) =>
-          Some(value.filter(x => {
-//            println(">>> address x=" + UniqueAddress(x._1.path.address, x._1.path.uid.toLong))
-//            println(">>> address y=" + address)
-            x._1.path.address == address.address // TODO: check this
-          }))
-        case None => None
-      }
-
-      snapshotGossipTo(address, version, updatedData, filteredMessages)
-    })
+        snapshotGossipTo(address, version, updatedData, filteredMessages)
+      })
+    } else {
+      // TODO: check that sending gossip to self is correct.
+      //  This is done to merge snapshot manager's localSnapshots into GSS
+      snapshotGossipTo(selfUniqueAddress, version, updatedData, messages)
+    }
   }
 
   def snapshotGossipTo(
@@ -2550,7 +2555,8 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
     // add remaining, if any
     addGossip()
 
-    log.debug("Created [{}] Gossip messages from [{}] data entries.", messages.size, keys.size)
+    if(log.isDebugEnabled)
+      log.debug("Created [{}] Gossip messages from [{}] data entries.", messages.size, keys.size)
 
     messages
   }
@@ -2630,7 +2636,8 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
     newSubscribers.exists { case (_, s) => s.contains(subscriber) }
 
   def receiveSubscribeToCausalChange(subscriber: ActorRef): Unit = {
-    log.debug("Replicator::receiveSubscribeToCausalChange(subscriber=" + subscriber + ")")
+    if(log.isDebugEnabled)
+      log.debug("Replicator::receiveSubscribeToCausalChange(subscriber=" + subscriber + ")")
     snapshotManager.addSubscriber(subscriber)
   }
 

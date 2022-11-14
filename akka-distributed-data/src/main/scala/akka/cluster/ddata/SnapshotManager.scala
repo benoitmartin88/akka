@@ -152,7 +152,7 @@ class SnapshotManager(
     localSnapshots
       .rangeTo(newGssVv)
       .foreach(p => {
-        def localSnapshotData = p._2
+        val localSnapshotData = p._2
 
         localSnapshotData.foreach(p2 => {
           newGssData.get(p2._1) match {
@@ -198,7 +198,7 @@ class SnapshotManager(
         localSnapshots
           .rangeTo(currentTransactionSnapshot._1._1)
           .foreach(p => {
-            def localSnapshotData = p._2
+            val localSnapshotData = p._2
 
             localSnapshotData.get(key) match {
               // localSnapshot has a value for key
@@ -273,9 +273,9 @@ class SnapshotManager(
     val res = currentTransactions.get(tid) match {
       case Some(currentTransaction) =>
         // found transaction
-        def currentTransactionSnapshot: Snapshot = currentTransaction._1
-        def incr: Boolean = if (forceIncrement) true else currentTransaction._2
-        def last: Snapshot = localSnapshots.lastOption match {
+        val currentTransactionSnapshot: Snapshot = currentTransaction._1
+        val incr: Boolean = if (forceIncrement) true else currentTransaction._2
+        val last: Snapshot = localSnapshots.lastOption match {
           case Some(l) => l
           case None    => globalStableSnapshot
         }

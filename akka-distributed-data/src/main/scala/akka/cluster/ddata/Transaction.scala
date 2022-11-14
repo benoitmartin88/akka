@@ -22,8 +22,8 @@ object Transaction {
     val tid: TransactionId = java.util.UUID.randomUUID.toString // TODO: 128 bits can be reduced. eg: Snowflake ?
     val messages: mutable.Map[ActorRef, mutable.Queue[Any]] = mutable.Map.empty
 
-    def get[T <: ReplicatedData](key: Key[T]): Unit = {
-      replicator.tell(Get(key, ReadLocal, None, Option(this)), actor)
+    def get[T <: ReplicatedData](key: Key[T], request: Option[Any] = None): Unit = {
+      replicator.tell(Get(key, ReadLocal, request, Option(this)), actor)
     }
 
 //    def update[T <: ReplicatedData](key: Key[T], initial: T)(modify: T => T): Unit = {
@@ -39,6 +39,7 @@ object Transaction {
     }
 
     def causalTell(msg: Any, to: ActorRef): Unit = {
+      assert(to != null)
       val q = messages.getOrElse(to, mutable.Queue.empty).enqueue(msg)
       messages.update(to, q)
     }
@@ -50,7 +51,7 @@ object Transaction {
  * - remove replicator from ctor arguments
  * - auto commit at the end of the transaction scope
  */
-final case class Transaction(system: ActorSystem, actor: ActorRef, operations: (Transaction.Context) => Unit) {
+final case class Transaction(system: ActorSystem, actor: ActorRef, var operations: (Transaction.Context) => Unit) {
   import akka.cluster.ddata.Transaction.{Context, TransactionId}
 
 //  def apply(actorContext: ActorContext, operations: (Transaction.Context) => Unit): Transaction = {
