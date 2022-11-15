@@ -1816,7 +1816,7 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
   }
 
   def receiveTwoPhaseCommitPrepare(tid: TransactionId, req: Option[Any]): Unit = {
-    log.info("Received TwoPhaseCommitPrepare for transaction [{}].", tid)
+    if(log.isDebugEnabled) log.debug("Received TwoPhaseCommitPrepare for transaction [{}].", tid)
 
 //    snapshotManager.currentTransactions.contains(tid)
 
@@ -1833,7 +1833,7 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
   }
 
   def receiveTwoPhaseCommitCommit(trxn: Transaction.Context, req: Option[Any]): Unit = {
-    log.info("Received TwoPhaseCommitCommit for transaction [{}].", trxn)
+    if(log.isDebugEnabled) log.debug("Received TwoPhaseCommitCommit for transaction [{}].", trxn)
 
     if (!snapshotManager.currentTransactions.contains(trxn.tid)) {
       replyTo ! TwoPhaseCommitCommitError(
@@ -1848,7 +1848,7 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
   }
 
   def receiveTwoPhaseCommitAbort(tid: TransactionId, req: Option[Any]): Unit = {
-    log.info("Received TwoPhaseCommitAbort for transaction [{}].", tid)
+    if(log.isDebugEnabled) log.debug("Received TwoPhaseCommitAbort for transaction [{}].", tid)
     snapshotManager.abort(tid)
     replyTo ! TwoPhaseCommitAbortSuccess(req)
   }
@@ -2362,7 +2362,12 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
   def triggerSnapshotGossip(version: Option[VersionVector], updatedData: Option[Map[KeyId, DataEnvelope]]): Unit = {
 //    println("=================== triggerSnapshotGossip() version=" + version + ", updatedData=" + updatedData)
     // broadcast to all known nodes
-    allNodes.foreach(address => snapshotGossipTo(address, version, updatedData)) // TODO: can this be better ?
+    if(allNodes.nonEmpty) {
+      allNodes.foreach(address => snapshotGossipTo(address, version, updatedData)) // TODO: can this be better ?
+    } else {
+      // case where there are no other nodes. This is done to merge snapshot manager's localSnapshots into GSS.
+      snapshotGossipTo(selfUniqueAddress, version, updatedData)
+    }
   }
 
   def snapshotGossipTo(

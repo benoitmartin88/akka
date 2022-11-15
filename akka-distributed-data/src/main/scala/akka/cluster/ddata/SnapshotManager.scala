@@ -138,7 +138,7 @@ class SnapshotManager(
     }
 
     // materialize before current snapshot
-    val newGssData = mutable.Map.empty[KeyId, DataEnvelope]
+    var newGssData = Map.empty[KeyId, DataEnvelope]
     newGssData ++= globalStableSnapshot._2 // apply old GSS values
 
     // apply localSnapshots
@@ -149,8 +149,8 @@ class SnapshotManager(
 
         localSnapshotData.foreach(p2 => {
           newGssData.get(p2._1) match {
-            case Some(newDataValue) => newGssData.update(p2._1, newDataValue.merge(p2._2))
-            case None               => newGssData.update(p2._1, p2._2)
+            case Some(newDataValue) => newGssData = newGssData.updated(p2._1, newDataValue.merge(p2._2))
+            case None               => newGssData = newGssData.updated(p2._1, p2._2)
           }
         })
 
@@ -158,8 +158,9 @@ class SnapshotManager(
         localSnapshots.remove(p._1)
       })
 
-    if (newGssData.nonEmpty) {
-      globalStableSnapshot = (newGssVv, newGssData.toMap)
+//    if (newGssData.nonEmpty) {
+    if (newGssVv != globalStableSnapshot._1) {
+      globalStableSnapshot = (newGssVv, newGssData)
       sendChangeToAllSubscribers(newGssVv) // TODO: check if this is the correct location to call this method !
     }
   }

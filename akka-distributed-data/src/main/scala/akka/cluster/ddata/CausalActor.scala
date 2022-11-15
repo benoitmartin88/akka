@@ -23,24 +23,24 @@ class CausalActor extends Actor with ActorLogging {
    */
   def receive: Receive = {
     case msg: CausalChange => // TODO: check that this is received from replicator
-      println("!!!!! CausalActor::receive() -> CausalChange msg= " + msg)
+//      println("!!!!! CausalActor::receive() -> CausalChange msg= " + msg)
       causalContext.gss = msg.versionVector
       checkAndDeliverCausalMessages() // check if buffered messages can be delivered.
       onCausalChange(causalContext)
     case msg: CausalMessageWrapper =>
       if (checkIfCausallyDeliverable(msg)) {
-        println("!!!!! CausalActor::receive() -> DELIVER")
+//        println("!!!!! CausalActor::receive() -> DELIVER")
         self.forward(msg.message)
         checkAndDeliverCausalMessages() // check if buffered messages can be delivered.
       } else {
         // buffer message and wait for causal context to be correct
-        println("!!!!! CausalActor::receive() -> ENQUEUE")
+//        println("!!!!! CausalActor::receive() -> ENQUEUE")
         buffer.enqueue(msg)
       }
   }
 
   private def checkIfCausallyDeliverable(msg: CausalMessageWrapper): Boolean = {
-    println(">>>>>>>>>>>> checkIfCausallyDeliverable() msg.metadata= " + msg.metadata.lastDeliveredSequenceMatrix)
+//    println(">>>>>>>>>>>> checkIfCausallyDeliverable() msg.metadata= " + msg.metadata.lastDeliveredSequenceMatrix)
     assert(msg.to == self)
     assert(causalContext.gss != None)
     assert(causalContext.gss.isInstanceOf[VersionVector])
@@ -54,12 +54,12 @@ class CausalActor extends Actor with ActorLogging {
     val lastSeenGss = causalContext.gss.asInstanceOf[VersionVector]
     val msgGss = msg.metadata.gss.asInstanceOf[VersionVector]
 
-    println(
-      ">>>>>>>>>>>> checkIfCausallyDeliverable() lastSeenSeqNumber=" + lastSeenSeqNumber +
-      ", msgSeqNumber=" + msgSeqNumber +
-      ", msgGss=" + msgGss +
-      ", lastSeenGss=" + lastSeenGss +
-      ", dependencies=" + dependencies)
+//    println(
+//      ">>>>>>>>>>>> checkIfCausallyDeliverable() lastSeenSeqNumber=" + lastSeenSeqNumber +
+//      ", msgSeqNumber=" + msgSeqNumber +
+//      ", msgGss=" + msgGss +
+//      ", lastSeenGss=" + lastSeenGss +
+//      ", dependencies=" + dependencies)
 
     if ((msgGss == lastSeenGss || msgGss < lastSeenGss) && // wait for shared memory
         lastSeenSeqNumber == msgSeqNumber - 1 && // consecutive sequence number
@@ -82,15 +82,8 @@ class CausalActor extends Actor with ActorLogging {
     causalContext.lastDeliveredSequenceMatrix ++= msg.metadata.lastDeliveredSequenceMatrix
   }
 
-  // TODO: find a more efficient way of doing this. No need to iterate through all messages
   private def checkAndDeliverCausalMessages(): Unit = {
-    buffer.foreach(msg => {
-      if (checkIfCausallyDeliverable(msg)) {
-        println("!!!!! CausalActor::receive() -> DELIVER")
-        self.forward(msg.message)
-        buffer = buffer.filter(mm => mm == msg)
-      }
-    })
+    buffer.dequeueWhile(checkIfCausallyDeliverable).foreach(msg => self.forward(msg.message))
   }
 
   def onCausalChange(@unused causalContext: Metadata): Unit = {}
