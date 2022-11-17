@@ -4,8 +4,8 @@
 
 package akka.cluster.ddata
 
-import akka.actor.{ Actor, ActorLogging, ActorRef }
-import akka.cluster.ddata.Replicator.{ CausalChange, SubscribeToCausalChange }
+import akka.actor.{Actor, ActorLogging, ActorRef}
+import akka.cluster.ddata.Replicator.{CausalChange, SubscribeToCausalChange}
 
 import scala.annotation.unused
 import scala.collection.mutable
@@ -69,13 +69,7 @@ class CausalActor extends Actor with ActorLogging {
 
   // TODO: find a more efficient way of doing this. No need to iterate through all messages
   private def checkAndDeliverCausalMessages(): Unit = {
-    buffer.foreach(msg => {
-      if (checkIfCausallyDeliverable(msg)) {
-//        println("!!!!! CausalActor::receive() -> DELIVER")
-        msg.messages.foreach(m => self.forward(m))
-        buffer = buffer.filter(mm => mm == msg)
-      }
-    })
+    buffer.dequeueWhile(checkIfCausallyDeliverable).foreach(msg => msg.messages.foreach(m => self.forward(m)))
   }
 
   def onCausalChange(@unused version: VersionVector): Unit = {}
