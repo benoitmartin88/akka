@@ -8,7 +8,7 @@ import akka.cluster.UniqueAddress
 import akka.cluster.ddata.Key.KeyR
 import akka.cluster.ddata.Replicator.Internal.DataEnvelope
 import akka.cluster.ddata.SnapshotManager.{DataEntries, Snapshot}
-import org.slf4j.{Logger, LoggerFactory}
+import akka.event.LoggingAdapter
 
 import scala.collection.mutable
 
@@ -19,11 +19,10 @@ object SnapshotManager {
   type DataEntries = Map[KeyR, DataEnvelope]
   type Snapshot = (VersionVector, DataEntries)
 
-  val log: Logger = LoggerFactory.getLogger("akka.cluster.ddata.SnapshotManager")
-
-  def apply(selfUniqueAddress: UniqueAddress): SnapshotManager = {
+  def apply(selfUniqueAddress: UniqueAddress, log: LoggingAdapter): SnapshotManager = {
     new SnapshotManager(
       selfUniqueAddress,
+      log,
       mutable.Map.empty,
       (VersionVector(selfUniqueAddress, 0), Map.empty),
       mutable.TreeMap.empty[VersionVector, DataEntries](VersionVectorOrdering),
@@ -33,6 +32,7 @@ object SnapshotManager {
 
 private[akka] class SnapshotManager(
     val selfUniqueAddress: UniqueAddress,
+    val log: LoggingAdapter,
     private val knownVersionVectors: mutable.Map[UniqueAddress, VersionVector],
     var globalStableSnapshot: Snapshot,
     var localSnapshots: mutable.TreeMap[VersionVector, DataEntries],
@@ -41,7 +41,7 @@ private[akka] class SnapshotManager(
   import SnapshotManager._
 
   def transactionPrepare(tid: Transaction.TransactionId): Snapshot = {
-    log.debug("SnapshotManager::transactionPrepare(tid=[{}])", tid)
+    if (log.isDebugEnabled) log.debug("SnapshotManager::transactionPrepare(tid=[{}])", tid)
     val res = (latestStableSnapshotVersionVector, Map.empty[KeyR, DataEnvelope])
     currentTransactions.update(tid, (res, false))
     res
@@ -74,11 +74,12 @@ private[akka] class SnapshotManager(
   def updateKnownVersionVectors(node: UniqueAddress, versionVector: VersionVector): Unit = {
     knownVersionVectors.update(node, versionVector)
     updateGlobalStableSnapshot()
-    log.debug(
-      "SnapshotManager::updateKnownVersionVectors(node=[{}], versionVector=[{}]): GSS=[{}]",
-      node,
-      versionVector,
-      globalStableSnapshot)
+    if (log.isDebugEnabled)
+      log.debug(
+        "SnapshotManager::updateKnownVersionVectors(node=[{}], versionVector=[{}]): GSS=[{}]",
+        node,
+        versionVector,
+        globalStableSnapshot)
   }
 
   def updateGlobalStableSnapshot(): Unit = {
@@ -119,7 +120,7 @@ private[akka] class SnapshotManager(
     }
 
     // materialize before current snapshot
-    val newGssData = mutable.Map.empty[KeyR, DataEnvelope]
+    var newGssData = Map.empty[KeyR, DataEnvelope]
     newGssData ++= globalStableSnapshot._2 // apply old GSS values
 
     // apply localSnapshots
@@ -130,8 +131,8 @@ private[akka] class SnapshotManager(
 
         localSnapshotData.foreach(p2 => {
           newGssData.get(p2._1) match {
-            case Some(newDataValue) => newGssData.update(p2._1, newDataValue.merge(p2._2))
-            case None               => newGssData.update(p2._1, p2._2)
+            case Some(newDataValue) => newGssData = newGssData.updated(p2._1, newDataValue.merge(p2._2))
+            case None               => newGssData = newGssData.updated(p2._1, p2._2)
           }
         })
 
@@ -139,7 +140,7 @@ private[akka] class SnapshotManager(
         localSnapshots.remove(p._1)
       })
 
-    if (newGssData.nonEmpty) globalStableSnapshot = (newGssVv, newGssData.toMap)
+    if (newGssData.nonEmpty) globalStableSnapshot = (newGssVv, newGssData)
   }
 
   /**
@@ -148,7 +149,7 @@ private[akka] class SnapshotManager(
    * @return value associated to the given key
    */
   def get(tid: Transaction.TransactionId, key: KeyR): Option[ReplicatedData] = {
-    log.debug("SnapshotManager::get(tid=[{}], key=[{}])", tid, key)
+    if (log.isDebugEnabled) log.debug("SnapshotManager::get(tid=[{}], key=[{}])", tid, key)
 
     // apply currentTransactions
     currentTransactions.get(tid) match {
@@ -205,13 +206,13 @@ private[akka] class SnapshotManager(
   }
 
   def update(tid: Transaction.TransactionId, updatedData: DataEntries): Unit = {
-    log.debug("SnapshotManager::update(tid=[{}], updatedData=[{}])", tid, updatedData)
+    if (log.isDebugEnabled) log.debug("SnapshotManager::update(tid=[{}], updatedData=[{}])", tid, updatedData)
     updatedData.foreach(p => update(tid, p._1, p._2))
   }
 
   def update(tid: Transaction.TransactionId, key: KeyR, envelope: DataEnvelope): Unit = {
-    log.debug("SnapshotManager::update(tid=[{}], key=[{}], envelope=[{}])", tid, key, envelope)
-    println("SnapshotManager::update(tid=[" + tid + "], key=[" + key + "]), envelope=" + envelope)
+    if (log.isDebugEnabled) log.debug("SnapshotManager::update(tid=[{}], key=[{}], envelope=[{}])", tid, key, envelope)
+//    println("SnapshotManager::update(tid=[" + tid + "], key=[" + key + "]), envelope=" + envelope)
     currentTransactions.get(tid) match {
       case Some(d) =>
         val newData = d._1._2.updated(key, envelope)
@@ -221,7 +222,8 @@ private[akka] class SnapshotManager(
   }
 
   def updateFromGossip(version: VersionVector, updatedData: DataEntries): Unit = {
-    log.debug("SnapshotManager::updateFromGossip(version=[{}], updatedData=[{}])", version, updatedData)
+    if (log.isDebugEnabled)
+      log.debug("SnapshotManager::updateFromGossip(version=[{}], updatedData=[{}])", version, updatedData)
 
     localSnapshots.get(version) match {
       case Some(localSnapshot) =>
@@ -239,7 +241,7 @@ private[akka] class SnapshotManager(
   }
 
   def commit(tid: Transaction.TransactionId): VersionVector = {
-    log.debug("SnapshotManager::commit(tid=[{}])", tid)
+    if (log.isDebugEnabled) log.debug("SnapshotManager::commit(tid=[{}])", tid)
 
     val res = currentTransactions.get(tid) match {
       case Some(currentTransaction) =>
@@ -267,7 +269,7 @@ private[akka] class SnapshotManager(
   }
 
   def abort(tid: Transaction.TransactionId): Unit = {
-    log.debug("SnapshotManager::abort(tid=[{}])", tid)
+    if (log.isDebugEnabled) log.debug("SnapshotManager::abort(tid=[{}])", tid)
     currentTransactions.remove(tid)
   }
 

@@ -4,11 +4,11 @@
 
 package akka.cluster.ddata
 
-import akka.actor.{ ActorContext, ActorRef }
+import akka.actor.{ActorRef, ActorSystem}
 import akka.cluster.ddata.Replicator._
+import akka.event.{Logging, LoggingAdapter}
 import akka.pattern.ask
 import akka.util.Timeout
-import org.slf4j.{ Logger, LoggerFactory }
 
 import scala.concurrent.Await
 import scala.concurrent.duration.DurationInt
@@ -21,8 +21,8 @@ object Transaction {
     val tid: TransactionId = java.util.UUID.randomUUID.toString // TODO: 128 bits can be reduced. eg: Snowflake ?
 //    val messagesToSend: mutable.Queue[(Any, ActorRef, ActorRef)] = mutable.Queue.empty
 
-    def get[T <: ReplicatedData](key: Key[T]): Unit = {
-      replicator.tell(Get(key, ReadLocal, None, Option(this)), actor)
+    def get[T <: ReplicatedData](key: Key[T], request: Option[Any] = None): Unit = {
+      replicator.tell(Get(key, ReadLocal, request, Option(this)), actor)
     }
 
 //    def update[T <: ReplicatedData](key: Key[T], initial: T)(modify: T => T): Unit = {
@@ -33,8 +33,8 @@ object Transaction {
 //      replicator ! Update(key, WriteLocal, None, Option(tid))(modify)
 //    }
 
-    def update[T <: ReplicatedData](key: Key[T])(value: T): Unit = {
-      replicator.tell(Update(key, WriteLocal, None, Some(tid))(_ => value), actor)
+    def update[T <: ReplicatedData](key: Key[T], request: Option[Any] = None)(value: T): Unit = {
+      replicator.tell(Update(key, WriteLocal, request, Some(tid))(_ => value), actor)
     }
 
     /**
@@ -64,7 +64,7 @@ object Transaction {
       }
 
       q.enqueue(msg, actor)
-      println("---- key=" + key + ", q=" + q)
+//      println("---- key=" + key + ", q=" + q)
 
       update(key)(q)
     }
@@ -76,20 +76,21 @@ object Transaction {
  * - remove replicator from ctor arguments
  * - auto commit at the end of the transaction scope
  */
-final case class Transaction(replicator: ActorRef, actor: ActorRef, operations: (Transaction.Context) => Unit) {
-  import akka.cluster.ddata.Transaction.{ Context, TransactionId }
+final case class Transaction(system: ActorSystem, actor: ActorRef, var operations: (Transaction.Context) => Unit) {
+  import akka.cluster.ddata.Transaction.{Context, TransactionId}
 
-  def apply(actorContext: ActorContext, operations: (Transaction.Context) => Unit): Transaction = {
-    val system = actorContext.system
-    val replicator = system.actorOf(
-      Replicator.props(ReplicatorSettings(system).withGossipInterval(1.second).withMaxDeltaElements(10)),
-      "replicator")
-    Transaction(replicator, actorContext.self, operations)
-  }
+//  def apply(actorContext: ActorContext, operations: (Transaction.Context) => Unit): Transaction = {
+//    val system = actorContext.system
+//    val replicator = system.actorOf(
+//      Replicator.props(ReplicatorSettings(system).withGossipInterval(1.second).withMaxDeltaElements(10)),
+//      "replicator")
+//    Transaction(system, actorContext.self, operations)
+//  }
 
+  val replicator = DistributedData(system).replicator
   val context: Context = Context(replicator, actor)
   val id: TransactionId = context.tid
-  val log: Logger = LoggerFactory.getLogger("akka.cluster.ddata.Transaction")
+  val log: LoggingAdapter = Logging(system, Transaction.getClass)
   private implicit val askTimeout: Timeout = 5.seconds
 
   prepare()

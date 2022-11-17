@@ -8,7 +8,6 @@ import akka.actor.{Actor, ActorLogging, ActorRef}
 import akka.cluster.ddata.Replicator.WriteLocal
 
 class CausalActor extends Actor with ActorLogging {
-  println("<<<<<<<<<<<<<<<<<< CausalActor()")
 
   val replicator: ActorRef = DistributedData(context.system).replicator
 //  val replicator = context.system.actorOf(
@@ -25,11 +24,11 @@ class CausalActor extends Actor with ActorLogging {
    */
   def receive: Receive = {
     case c @ Replicator.Changed(messageQueueKey) =>
-      println("!!!!! CausalActor::receive() -> messageQueueKey=" + messageQueueKey + ", data=" + c.get(messageQueueKey))
+//      println("!!!!! CausalActor::receive() -> messageQueueKey=" + messageQueueKey + ", data=" + c.get(messageQueueKey))
 
       val q = c.get(messageQueueKey).asInstanceOf[MessageQueue].queue
       q.foreach(m => {
-        println("----> m=" + m)
+//        println("----> m=" + m)
         self.tell(m._1, m._2)
       })
 
@@ -38,8 +37,7 @@ class CausalActor extends Actor with ActorLogging {
 
 //      assert(false)
     case Replicator.DeleteSuccess(_, None) =>
-    case Replicator.Deleted(_) =>
-
+    case Replicator.Deleted(_)             =>
 //    case msg @ Replicator.Changed(key) =>
 //      println("!!!!! CausalActor::receive() -> Changed msg= " + msg + ", key=" + key)
 //

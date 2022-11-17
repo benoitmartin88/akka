@@ -4,33 +4,14 @@
 
 package akka.cluster.ddata
 
-import akka.actor.{
-  Actor,
-  ActorInitializationException,
-  ActorLogging,
-  ActorRef,
-  ActorSelection,
-  ActorSystem,
-  Address,
-  Cancellable,
-  DeadLetterActorRef,
-  DeadLetterSuppression,
-  Deploy,
-  ExtendedActorSystem,
-  NoSerializationVerificationNeeded,
-  OneForOneStrategy,
-  Props,
-  ReceiveTimeout,
-  SupervisorStrategy,
-  Terminated
-}
+import akka.actor.{Actor, ActorInitializationException, ActorLogging, ActorRef, ActorSelection, ActorSystem, Address, Cancellable, DeadLetterActorRef, DeadLetterSuppression, Deploy, ExtendedActorSystem, NoSerializationVerificationNeeded, OneForOneStrategy, Props, ReceiveTimeout, SupervisorStrategy, Terminated}
 import akka.annotation.InternalApi
 import akka.cluster.ClusterEvent._
 import akka.cluster.ddata.DurableStore._
-import akka.cluster.ddata.Key.{ KeyId, KeyR }
+import akka.cluster.ddata.Key.{KeyId, KeyR}
 import akka.cluster.ddata.SnapshotManager.DataEntries
 import akka.cluster.ddata.Transaction.TransactionId
-import akka.cluster.{ Cluster, Member, MemberStatus, UniqueAddress }
+import akka.cluster.{Cluster, Member, MemberStatus, UniqueAddress}
 import akka.dispatch.Dispatchers
 import akka.event.Logging
 import akka.remote.RARP
@@ -43,14 +24,14 @@ import com.typesafe.config.Config
 
 import java.security.MessageDigest
 import java.util.Optional
-import java.util.concurrent.{ ThreadLocalRandom, TimeUnit }
-import java.util.function.{ Function => JFunction }
-import scala.annotation.{ nowarn, varargs }
+import java.util.concurrent.{ThreadLocalRandom, TimeUnit}
+import java.util.function.{Function => JFunction}
+import scala.annotation.{nowarn, varargs}
 import scala.collection.immutable.TreeSet
-import scala.collection.{ immutable, mutable }
-import scala.concurrent.duration.{ FiniteDuration, _ }
-import scala.util.control.{ NoStackTrace, NonFatal }
-import scala.util.{ Failure, Success, Try }
+import scala.collection.{immutable, mutable}
+import scala.concurrent.duration.{FiniteDuration, _}
+import scala.util.control.{NoStackTrace, NonFatal}
+import scala.util.{Failure, Success, Try}
 
 @ccompatUsedUntil213
 object ReplicatorSettings {
@@ -807,6 +788,7 @@ object Replicator {
   final case class Changed[A <: ReplicatedData](key: Key[A])(data: A)
       extends SubscribeResponse[A]
       with ReplicatorMessage {
+
     /**
      * The data value, with correct type.
      * Scala pattern matching cannot infer the type from the `key` parameter.
@@ -1580,7 +1562,7 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
           .scheduleWithFixedDelay(deltaPropagationInterval, deltaPropagationInterval, self, DeltaPropagationTick))
     } else None
 
-  val snapshotManager: SnapshotManager = SnapshotManager(selfUniqueAddress)
+  val snapshotManager: SnapshotManager = SnapshotManager(selfUniqueAddress, log)
 
   // cluster nodes, doesn't contain selfAddress, doesn't contain joining and weaklyUp
   var nodes: immutable.SortedSet[UniqueAddress] = immutable.SortedSet.empty
@@ -1824,13 +1806,13 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
   }
 
   def receiveTwoPhaseCommitPrepare(tid: TransactionId, req: Option[Any]): Unit = {
-    log.info("Received TwoPhaseCommitPrepare for transaction [{}].", tid)
+    if(log.isDebugEnabled) log.debug("Received TwoPhaseCommitPrepare for transaction [{}].", tid)
 
     val reply = if (snapshotManager.currentTransactions.contains(tid)) {
-      log.debug("Transaction id " + tid + " already inflight")
+      if (log.isDebugEnabled) log.debug("Transaction id " + tid + " already inflight")
       TwoPhaseCommitPrepareError("Transaction id " + tid + " already inflight", req)
     } else {
-      log.debug("Transaction id " + tid + " prepare OK")
+      if (log.isDebugEnabled) log.debug("Transaction id " + tid + " prepare OK")
       val snapshot = snapshotManager.transactionPrepare(tid)
       TwoPhaseCommitPrepareSuccess(snapshot._1, req)
     }
@@ -1839,7 +1821,7 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
   }
 
   def receiveTwoPhaseCommitCommit(trxn: Transaction.Context, req: Option[Any]): Unit = {
-    log.info("Received TwoPhaseCommitCommit for transaction [{}].", trxn)
+    if(log.isDebugEnabled) log.debug("Received TwoPhaseCommitCommit for transaction [{}].", trxn)
 
     if (!snapshotManager.currentTransactions.contains(trxn.tid)) {
       replyTo ! TwoPhaseCommitCommitError(
@@ -1854,7 +1836,7 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
   }
 
   def receiveTwoPhaseCommitAbort(tid: TransactionId, req: Option[Any]): Unit = {
-    log.info("Received TwoPhaseCommitAbort for transaction [{}].", tid)
+    if(log.isDebugEnabled) log.debug("Received TwoPhaseCommitAbort for transaction [{}].", tid)
     snapshotManager.abort(tid)
     replyTo ! TwoPhaseCommitAbortSuccess(req)
   }
@@ -1867,7 +1849,7 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
    * 4) check snapshot
    */
   def receiveGet(key: KeyR, consistency: ReadConsistency, req: Option[Any], trxn: Option[Transaction.Context]): Unit = {
-    log.debug("Received Get for key [{}] on transaction [{}]. replyTo=[{}]", key, trxn, replyTo)
+    if (log.isDebugEnabled) log.debug("Received Get for key [{}] on transaction [{}]. replyTo=[{}]", key, trxn, replyTo)
 
     if (trxn.isEmpty) {
       // not a transaction
@@ -1978,10 +1960,10 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
       }
     } match {
       case Success((DataEnvelope(DeletedData, _, _), _)) =>
-        log.debug("Received Update for deleted key [{}].", key)
+        if (log.isDebugEnabled) log.debug("Received Update for deleted key [{}].", key)
         replyTo ! UpdateDataDeleted(key, req)
       case Success((envelope, delta)) =>
-        log.debug("[{}] - Received Update for key [{}].", tid, key)
+        if (log.isDebugEnabled) log.debug("[{}] - Received Update for key [{}].", tid, key)
         assert(!replyTo.isInstanceOf[DeadLetterActorRef])
 
         if (tid.isEmpty) {
@@ -1989,9 +1971,9 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
           handleUpdate(key, writeConsistency, envelope, req, delta)
         } else {
           // in a transaction: save for later
-          snapshotManager.update(tid.get, key, envelope)  // TODO: handle the case where prepare has not been called
+          snapshotManager.update(tid.get, key, envelope) // TODO: handle the case where prepare has not been called
           replyTo ! UpdateSuccess(key, req)
-          log.debug("[{}] - Update successful for key [{}]. replyTo=[{}]", tid, key, replyTo)
+          if (log.isDebugEnabled) log.debug("[{}] - Update successful for key [{}]. replyTo=[{}]", tid, key, replyTo)
         }
 
       case Failure(e) =>
@@ -2369,7 +2351,11 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
   def triggerSnapshotGossip(version: Option[VersionVector], updatedData: Option[DataEntries]): Unit = {
 //    println("=================== triggerSnapshotGossip() version=" + version + ", updatedData=" + updatedData)
     // broadcast to all known nodes
-    allNodes.foreach(address => snapshotGossipTo(address, version, updatedData)) // TODO: can this be better ?
+    if(allNodes.nonEmpty) {
+      allNodes.foreach(address => snapshotGossipTo(address, version, updatedData)) // TODO: can this be better ?
+    } else {
+      snapshotGossipTo(selfUniqueAddress, version, updatedData)
+    }
   }
 
   def snapshotGossipTo(
@@ -2520,7 +2506,7 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
     // add remaining, if any
     addGossip()
 
-    log.debug("Created [{}] Gossip messages from [{}] data entries.", messages.size, keys.size)
+    if (log.isDebugEnabled) log.debug("Created [{}] Gossip messages from [{}] data entries.", messages.size, keys.size)
 
     messages
   }
@@ -2568,7 +2554,7 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
         p.foreach(pp => handleUpdate(pp._1, WriteLocal, pp._2, None, None, sendReply = false))
       case _ =>
     }
-    self ! FlushChanges   // force notification to subscribers
+    self ! FlushChanges // force notification to subscribers
   }
 
   def receiveSubscribe(key: KeyR, subscriber: ActorRef): Unit = {
