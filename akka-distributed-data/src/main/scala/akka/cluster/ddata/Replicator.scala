@@ -1820,15 +1820,15 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
   }
 
   def receiveTwoPhaseCommitPrepare(tid: TransactionId, req: Option[Any]): Unit = {
-    if(log.isDebugEnabled) log.debug("Received TwoPhaseCommitPrepare for transaction [{}].", tid)
+    if (log.isDebugEnabled) log.debug("Received TwoPhaseCommitPrepare for transaction [{}].", tid)
 
 //    snapshotManager.currentTransactions.contains(tid)
 
     val reply = if (snapshotManager.currentTransactions.contains(tid)) {
-      if(log.isDebugEnabled) log.debug("Transaction id " + tid + " already inflight")
+      if (log.isDebugEnabled) log.debug("Transaction id " + tid + " already inflight")
       TwoPhaseCommitPrepareError("Transaction id " + tid + " already inflight", req)
     } else {
-      if(log.isDebugEnabled) log.debug("Transaction id " + tid + " prepare OK")
+      if (log.isDebugEnabled) log.debug("Transaction id " + tid + " prepare OK")
       val snapshot = snapshotManager.transactionPrepare(tid)
       TwoPhaseCommitPrepareSuccess(snapshot._1, req)
     }
@@ -1837,7 +1837,7 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
   }
 
   def receiveTwoPhaseCommitCommit(trxn: Transaction.Context, req: Option[Any]): Unit = {
-    if(log.isDebugEnabled) log.debug("Received TwoPhaseCommitCommit for transaction [{}].", trxn)
+    if (log.isDebugEnabled) log.debug("Received TwoPhaseCommitCommit for transaction [{}].", trxn)
 
     if (!snapshotManager.currentTransactions.contains(trxn.tid)) {
       replyTo ! TwoPhaseCommitCommitError(
@@ -1848,6 +1848,8 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
       // increment commitVV if no shared memory writes AND at least 1 causal message
       val increment = trxn.messages.exists(x => x._2.nonEmpty)
       val commitVV = snapshotManager.commit(trxn.tid, increment)
+
+      snapshotManager.updateKnownVersionVectors(selfUniqueAddress, commitVV)
 
       triggerSnapshotGossip(
         Some(commitVV), // TODO: is this correct ? should this be commitVV ?
@@ -1861,7 +1863,7 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
   }
 
   def receiveTwoPhaseCommitAbort(tid: TransactionId, req: Option[Any]): Unit = {
-    if(log.isDebugEnabled) log.debug("Received TwoPhaseCommitAbort for transaction [{}].", tid)
+    if (log.isDebugEnabled) log.debug("Received TwoPhaseCommitAbort for transaction [{}].", tid)
     snapshotManager.abort(tid)
     replyTo ! TwoPhaseCommitAbortSuccess(req)
   }
@@ -1874,7 +1876,7 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
    * 4) check snapshot
    */
   def receiveGet(key: KeyR, consistency: ReadConsistency, req: Option[Any], trxn: Option[Transaction.Context]): Unit = {
-    if(log.isDebugEnabled) log.debug("Received Get for key [{}] on transaction [{}]. replyTo=[{}]", key, trxn, replyTo)
+    if (log.isDebugEnabled) log.debug("Received Get for key [{}] on transaction [{}]. replyTo=[{}]", key, trxn, replyTo)
 
     if (trxn.isEmpty) {
       // not a transaction
@@ -2375,34 +2377,29 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
       version: Option[VersionVector],
       updatedData: Option[Map[KeyId, DataEnvelope]],
       messages: Option[Map[ActorRef, mutable.Queue[Any]]]): Unit = {
-    if(log.isDebugEnabled) {
+    if (log.isDebugEnabled) {
       log.debug(
         "triggerSnapshotGossip() version=" + version +
-          ", updatedData=" + updatedData +
-          ", messages=" + messages)
+        ", updatedData=" + updatedData +
+        ", messages=" + messages)
     }
 
     // broadcast to all known nodes
-    if(allNodes.nonEmpty) {
-      allNodes.foreach(address => {
-        // only send messages that concern node
-        val filteredMessages = messages match {
-          case Some(value) =>
-            Some(value.filter(x => {
-              //            println(">>> address x=" + UniqueAddress(x._1.path.address, x._1.path.uid.toLong))
-              //            println(">>> address y=" + address)
-              x._1.path.address == address.address // TODO: check this
-            }))
-          case None => None
-        }
+    nodes.foreach(address => {
+      // only send messages that concern node
+      val filteredMessages = messages match {
+        case Some(value) =>
+          Some(value.filter(x => {
+            //            println(">>> address x=" + UniqueAddress(x._1.path.address, x._1.path.uid.toLong))
+            //            println(">>> address y=" + address)
+            x._1.path.address == address.address // TODO: check this
+          }))
+        case None => None
+      }
 
-        snapshotGossipTo(address, version, updatedData, filteredMessages)
-      })
-    } else {
-      // TODO: check that sending gossip to self is correct.
-      //  This is done to merge snapshot manager's localSnapshots into GSS
-      snapshotGossipTo(selfUniqueAddress, version, updatedData, messages)
-    }
+      snapshotGossipTo(address, version, updatedData, filteredMessages)
+    })
+//    snapshotGossipTo(selfUniqueAddress, version, updatedData, None)
   }
 
   def snapshotGossipTo(
@@ -2555,7 +2552,7 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
     // add remaining, if any
     addGossip()
 
-    if(log.isDebugEnabled)
+    if (log.isDebugEnabled)
       log.debug("Created [{}] Gossip messages from [{}] data entries.", messages.size, keys.size)
 
     messages
@@ -2596,17 +2593,36 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
         versionVector,
         updatedData)
 
-    if(log.isDebugEnabled) {
+    if (log.isDebugEnabled) {
       log.debug("Received SnapshotGossip messages=" + messages + ", from=" + from)
     }
 
-    snapshotManager.updateKnownVersionVectors(from, versionVector) // TODO: this updates GSS, should this be done after updating the data ?
-
-    updatedData match {
+    // check if this is a concurrent update
+    val snapshot = snapshotManager.localSnapshots.find(p => p._1.compareTo(versionVector) == VersionVector.Concurrent)
+    snapshot match {
       case Some(p) =>
-        snapshotManager.updateFromGossip(versionVector, p)
+        // if concurrent
+        val mergedVV = p._1.merge(versionVector)
+
+        if (updatedData.isDefined) {
+          val mergedData = p._2 ++ updatedData.get.map {
+              case (k, v) =>
+                p._2.get(k) match {
+                  case Some(foundValue) => k -> v.merge(foundValue)
+                  case _                => k -> v
+                }
+            }
+          snapshotManager.updateFromGossip(mergedVV, mergedData)
+        }
+
       case _ =>
+        // if not concurrent
+        if (updatedData.isDefined) {
+          snapshotManager.updateFromGossip(versionVector, updatedData.get)
+        }
     }
+
+    snapshotManager.updateKnownVersionVectors(from, versionVector) // TODO: might need to update with mergedVV
 
     // deliver causal messages to causal actor
     messages match {
@@ -2636,7 +2652,7 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
     newSubscribers.exists { case (_, s) => s.contains(subscriber) }
 
   def receiveSubscribeToCausalChange(subscriber: ActorRef): Unit = {
-    if(log.isDebugEnabled)
+    if (log.isDebugEnabled)
       log.debug("Replicator::receiveSubscribeToCausalChange(subscriber=" + subscriber + ")")
     snapshotManager.addSubscriber(subscriber)
   }

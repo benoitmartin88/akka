@@ -4,7 +4,7 @@
 
 package akka.cluster.ddata
 
-import akka.actor.{ ActorSystem, Address }
+import akka.actor.{ActorSystem, Address}
 import akka.cluster.UniqueAddress
 import akka.cluster.ddata.Replicator.Internal.DataEnvelope
 import akka.event.Logging
@@ -39,7 +39,7 @@ class SnapshotManagerSpec extends AnyWordSpec with Matchers {
     val vv22 = ManyVersionVector(TreeMap(node1 -> 2, node2 -> 2))
     val vv23 = ManyVersionVector(TreeMap(node1 -> 2, node2 -> 3))
 
-    val system = ActorSystem("")
+    val system = ActorSystem("TestSystem")
     val log = Logging(system, "SnapshotManager")
     val snapshotManager = SnapshotManager(node1, log)
 
@@ -49,31 +49,41 @@ class SnapshotManagerSpec extends AnyWordSpec with Matchers {
       // check currentTransactions
       snapshotManager.currentTransactions.size should be(0)
       // check committedTransactions
-//      snapshotManager.lastestLocalSnapshot._1.compareTo(VersionVector.empty) should be(VersionVector.Same)
-//      snapshotManager.lastestLocalSnapshot._2.size should be(0)
-      // check knownVersionVectors
-      snapshotManager.getKnownVectorClocks.size should be(0)
+      snapshotManager.localSnapshots.size should be(0)
       // check globalStableSnapshot
       snapshotManager.globalStableSnapshot._1.compareTo(vv0) should be(VersionVector.Same)
       snapshotManager.globalStableSnapshot._2.size should be(0)
+      // check knownVersionVectors
+      snapshotManager.getKnownVectorClocks.size should be(0)
 
       // get
       snapshotManager.get("NOT A TID", key1) should be(None)
       // check currentTransactions
       snapshotManager.currentTransactions.size should be(0)
       // check committedTransactions
-//      snapshotManager.lastestLocalSnapshot._1.compareTo(VersionVector.empty) should be(VersionVector.Same)
-//      snapshotManager.lastestLocalSnapshot._2.size should be(0)
-      // check knownVersionVectors
-      snapshotManager.getKnownVectorClocks.size should be(0)
+      snapshotManager.localSnapshots.size should be(0)
       // check globalStableSnapshot
       snapshotManager.globalStableSnapshot._1.compareTo(vv0) should be(VersionVector.Same)
       snapshotManager.globalStableSnapshot._2.size should be(0)
+      // check knownVersionVectors
+      snapshotManager.getKnownVectorClocks.size should be(0)
     }
 
     "update multiple times correctly" in {
       val tid = "42"
       val (vv, _) = snapshotManager.transactionPrepare(tid)
+      // check currentTransactions
+      snapshotManager.currentTransactions.contains(tid) should be(true)
+      snapshotManager.currentTransactions(tid)._1._1.compareTo(vv) should be(VersionVector.Same)
+      snapshotManager.currentTransactions(tid)._1._2.size should be(0)
+      snapshotManager.currentTransactions(tid)._2 should be(false)
+      // check committedTransactions
+      snapshotManager.localSnapshots.size should be(0)
+      // check globalStableSnapshot
+      snapshotManager.globalStableSnapshot._1.compareTo(vv0) should be(VersionVector.Same)
+      snapshotManager.globalStableSnapshot._2.size should be(0)
+      // check knownVersionVectors
+      snapshotManager.getKnownVectorClocks.size should be(0)
 
       snapshotManager.update(tid, key1, DataEnvelope(c1))
       // check currentTransactions
@@ -83,11 +93,11 @@ class SnapshotManagerSpec extends AnyWordSpec with Matchers {
       snapshotManager.currentTransactions(tid)._2 should be(true)
       // check committedTransactions
       snapshotManager.localSnapshots.size should be(0)
-      // check knownVersionVectors
-      snapshotManager.getKnownVectorClocks.size should be(0)
       // check globalStableSnapshot
       snapshotManager.globalStableSnapshot._1.compareTo(vv0) should be(VersionVector.Same)
       snapshotManager.globalStableSnapshot._2.size should be(0)
+      // check knownVersionVectors
+      snapshotManager.getKnownVectorClocks.size should be(0)
 
       // same data
       snapshotManager.update(tid, key1, DataEnvelope(c1))
@@ -98,11 +108,11 @@ class SnapshotManagerSpec extends AnyWordSpec with Matchers {
       snapshotManager.currentTransactions(tid)._2 should be(true)
       // check committedTransactions
       snapshotManager.localSnapshots.size should be(0)
-      // check knownVersionVectors
-      snapshotManager.getKnownVectorClocks.size should be(0)
       // check globalStableSnapshot
       snapshotManager.globalStableSnapshot._1.compareTo(vv0) should be(VersionVector.Same)
       snapshotManager.globalStableSnapshot._2.size should be(0)
+      // check knownVersionVectors
+      snapshotManager.getKnownVectorClocks.size should be(0)
 
       // different key
       snapshotManager.update(tid, key2, DataEnvelope(c1))
@@ -114,11 +124,11 @@ class SnapshotManagerSpec extends AnyWordSpec with Matchers {
       snapshotManager.currentTransactions(tid)._2 should be(true)
       // check committedTransactions
       snapshotManager.localSnapshots.size should be(0)
-      // check knownVersionVectors
-      snapshotManager.getKnownVectorClocks.size should be(0)
       // check globalStableSnapshot
       snapshotManager.globalStableSnapshot._1.compareTo(vv0) should be(VersionVector.Same)
       snapshotManager.globalStableSnapshot._2.size should be(0)
+      // check knownVersionVectors
+      snapshotManager.getKnownVectorClocks.size should be(0)
 
       // same key, different value
       snapshotManager.update(tid, key2, DataEnvelope(c2))
@@ -130,16 +140,18 @@ class SnapshotManagerSpec extends AnyWordSpec with Matchers {
       snapshotManager.currentTransactions(tid)._2 should be(true)
       // check committedTransactions
       snapshotManager.localSnapshots.size should be(0)
-      // check knownVersionVectors
-      snapshotManager.getKnownVectorClocks.size should be(0)
       // check globalStableSnapshot
       snapshotManager.globalStableSnapshot._1.compareTo(vv0) should be(VersionVector.Same)
       snapshotManager.globalStableSnapshot._2.size should be(0)
+      // check knownVersionVectors
+      snapshotManager.getKnownVectorClocks.size should be(0)
 
       // commit
       val commitVv = snapshotManager.commit(tid)
+      snapshotManager.currentTransactions.contains(tid) should be(true)
       commitVv.compareTo(vv) should be(VersionVector.After)
       // check currentTransactions
+      snapshotManager.clear(tid)
       snapshotManager.currentTransactions.contains(tid) should be(false)
       // check committedTransactions
       snapshotManager.localSnapshots.size should be(1)
@@ -147,11 +159,11 @@ class SnapshotManagerSpec extends AnyWordSpec with Matchers {
       snapshotManager.localSnapshots.last._2.size should be(2)
       snapshotManager.localSnapshots.last._2(key1).data should be(c1)
       snapshotManager.localSnapshots.last._2(key2).data should be(c2)
-      // check knownVersionVectors
-      snapshotManager.getKnownVectorClocks.size should be(0)
       // check globalStableSnapshot
       snapshotManager.globalStableSnapshot._1.compareTo(vv0) should be(VersionVector.Same)
       snapshotManager.globalStableSnapshot._2.size should be(0)
+      // check knownVersionVectors
+      snapshotManager.getKnownVectorClocks.size should be(0)
     }
 
     "get previously added key with correct vector clock" in {
@@ -165,9 +177,11 @@ class SnapshotManagerSpec extends AnyWordSpec with Matchers {
 
       // commit
       val commitVv = snapshotManager.commit(tid)
+      snapshotManager.currentTransactions.contains(tid) should be(true)
       commitVv.compareTo(vv) should be(VersionVector.Same)
 
       // check currentTransactions
+      snapshotManager.clear(tid)
       snapshotManager.currentTransactions.contains(tid) should be(false)
       // check committedTransactions
       snapshotManager.localSnapshots.size should be(1)
@@ -175,19 +189,21 @@ class SnapshotManagerSpec extends AnyWordSpec with Matchers {
       snapshotManager.localSnapshots.last._2.size should be(2)
       snapshotManager.localSnapshots.last._2(key1).data should be(c1)
       snapshotManager.localSnapshots.last._2(key2).data should be(c2)
-      // check knownVersionVectors
-      snapshotManager.getKnownVectorClocks.size should be(0)
       // check globalStableSnapshot
       snapshotManager.globalStableSnapshot._1.compareTo(vv0) should be(VersionVector.Same)
       snapshotManager.globalStableSnapshot._2.size should be(0)
+      // check knownVersionVectors
+      snapshotManager.getKnownVectorClocks.size should be(0)
     }
 
     "get unknown key" in {
       val tid = "44"
       val (_, _) = snapshotManager.transactionPrepare(tid)
+      snapshotManager.currentTransactions.contains(tid) should be(true)
       val key = "unknown key"
       snapshotManager.get(tid, key) should be(None)
       snapshotManager.abort(tid)
+      snapshotManager.currentTransactions.contains(tid) should be(false)
     }
 
     "update GSS correctly" in {
@@ -204,6 +220,7 @@ class SnapshotManagerSpec extends AnyWordSpec with Matchers {
       snapshotManager.globalStableSnapshot._2(key1).data should be(c1)
       snapshotManager.globalStableSnapshot._2(key2).data should be(c2)
       snapshotManager.localSnapshots.size should be(0)
+      snapshotManager.currentTransactions.size should be(0)
 
       // update node2
       snapshotManager.updateKnownVersionVectors(node2, vv11)
@@ -213,6 +230,7 @@ class SnapshotManagerSpec extends AnyWordSpec with Matchers {
       snapshotManager.globalStableSnapshot._2(key1).data should be(c1)
       snapshotManager.globalStableSnapshot._2(key2).data should be(c2)
       snapshotManager.localSnapshots.size should be(0)
+      snapshotManager.currentTransactions.size should be(0)
     }
 
     "update GSS correctly after commit" in {
@@ -244,9 +262,11 @@ class SnapshotManagerSpec extends AnyWordSpec with Matchers {
       snapshotManager.globalStableSnapshot._2(key2).data should be(c2)
 
       val commitVv = snapshotManager.commit(tid)
+      snapshotManager.currentTransactions.contains(tid) should be(true)
       commitVv.compareTo(vv2) should be(VersionVector.Same)
 
       // check currentTransactions
+      snapshotManager.clear(tid)
       snapshotManager.currentTransactions.contains(tid) should be(false)
       // check committedTransactions
       snapshotManager.localSnapshots.size should be(1)
