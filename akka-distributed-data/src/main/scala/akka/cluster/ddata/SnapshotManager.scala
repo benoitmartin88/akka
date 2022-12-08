@@ -67,7 +67,7 @@ class SnapshotManager(
 
   private[akka] def latestStableSnapshotVersionVector: VersionVector = {
     localSnapshots.lastOption match {
-      case Some(last) => globalStableSnapshot._1.merge(last._1)
+      case Some(last) => last._1
       case None       => globalStableSnapshot._1
     }
   }
@@ -123,7 +123,7 @@ class SnapshotManager(
 
               if (node1 == node2) {
                 if (res.contains(node1)) {
-                  res = res.merge(VersionVector(node1, math.min(node2Vv, res.versionAt(node1))))
+                  res = res.merge(VersionVector(node1, math.min(math.min(node2Vv, node1Vv), res.versionAt(node1))))
                 } else {
                   res = res.merge(VersionVector(node1, math.min(node2Vv, node1Vv)))
                 }
@@ -138,30 +138,31 @@ class SnapshotManager(
     }
 
     // materialize before current snapshot
-    var newGssData = Map.empty[KeyId, DataEnvelope]
-    newGssData ++= globalStableSnapshot._2 // apply old GSS values
+    if (newGssVv != globalStableSnapshot._1) {
+      // materialize before current snapshot
+      var newGssData = globalStableSnapshot._2 // apply old GSS values
 
-    // apply localSnapshots
-    localSnapshots
-      .rangeTo(newGssVv)
-      .foreach(p => {
-        def localSnapshotData = p._2
+      // apply localSnapshots
+      localSnapshots
+        .rangeTo(newGssVv)
+        .foreach(p => {
+          val localSnapshotData = p._2
 
-        localSnapshotData.foreach(p2 => {
-          newGssData.get(p2._1) match {
-            case Some(newDataValue) => newGssData = newGssData.updated(p2._1, newDataValue.merge(p2._2))
-            case None               => newGssData = newGssData.updated(p2._1, p2._2)
-          }
+          localSnapshotData.foreach(p2 => {
+            newGssData.get(p2._1) match {
+              case Some(newDataValue) => newGssData = newGssData.updated(p2._1, newDataValue.merge(p2._2))
+              case None => newGssData = newGssData.updated(p2._1, p2._2)
+            }
+          })
+
+          // clear localSnapshot that has been merged in GSS
+          localSnapshots.remove(p._1)
         })
 
-        // clear localSnapshot that has been merged in GSS
-        localSnapshots.remove(p._1)
-      })
 
-//    if (newGssData.nonEmpty) {
-    if (newGssVv != globalStableSnapshot._1) {
       globalStableSnapshot = (newGssVv, newGssData)
       sendChangeToAllSubscribers(newGssVv) // TODO: check if this is the correct location to call this method !
+      //      println("GSS UPDATE ! newGssVv=" + newGssVv + ", localSnapshots.size=" + localSnapshots.size)
     }
   }
 
@@ -259,29 +260,39 @@ class SnapshotManager(
       case Some(currentTransaction) =>
         // found transaction
         def currentTransactionSnapshot: Snapshot = currentTransaction._1
-        def increment: Boolean = currentTransaction._2
+        def incr: Boolean = currentTransaction._2
         def last: Snapshot = localSnapshots.lastOption match {
           case Some(l) => l
           case None    => globalStableSnapshot
         }
 
         val commitVv =
-          if (increment) last._1.increment(selfUniqueAddress)
+          if (incr) last._1.increment(selfUniqueAddress)
           else last._1
 
 //        assert(commitVv.compareTo(last._1) == (VersionVector.After | VersionVector.Same))
 
-        if (currentTransactionSnapshot._2.nonEmpty) localSnapshots.update(commitVv, currentTransactionSnapshot._2)
+        if (currentTransactionSnapshot._2.nonEmpty) {
+          assert(incr)
+          localSnapshots.update(commitVv, currentTransactionSnapshot._2)
+        }
+
         commitVv
       case None => VersionVector.empty // transaction not found
     }
 
-    currentTransactions.remove(tid)
+//    currentTransactions.remove(tid)
     res
   }
 
   def abort(tid: Transaction.TransactionId): Unit = {
     if (log.isDebugEnabled) log.debug("SnapshotManager::abort(tid=[{}])", tid)
+    currentTransactions.remove(tid)
+  }
+
+  def clear(tid: Transaction.TransactionId): Unit = {
+    if (log.isDebugEnabled)
+      log.debug("SnapshotManager::clear(tid=[{}])", tid)
     currentTransactions.remove(tid)
   }
 
