@@ -1828,9 +1828,12 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
         "no transaction with id " + trxn.tid + ": prepare not called or wrong transaction id",
         req)
     } else {
-      triggerSnapshotGossip(Some(trxn.version), Some(snapshotManager.currentTransactions(trxn.tid)._1._2))
-      snapshotManager.commit(trxn.tid)
+      val commitVV = snapshotManager.commit(trxn.tid)
+      snapshotManager.updateKnownVersionVectors(selfUniqueAddress, commitVV)
 
+      triggerSnapshotGossip(Some(trxn.version), Some(snapshotManager.currentTransactions(trxn.tid)._1._2))
+
+      snapshotManager.clear(trxn.tid)
       replyTo ! TwoPhaseCommitCommitSuccess(req)
     }
   }
@@ -2351,11 +2354,7 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
   def triggerSnapshotGossip(version: Option[VersionVector], updatedData: Option[DataEntries]): Unit = {
 //    println("=================== triggerSnapshotGossip() version=" + version + ", updatedData=" + updatedData)
     // broadcast to all known nodes
-    if(allNodes.nonEmpty) {
-      allNodes.foreach(address => snapshotGossipTo(address, version, updatedData)) // TODO: can this be better ?
-    } else {
-      snapshotGossipTo(selfUniqueAddress, version, updatedData)
-    }
+    allNodes.foreach(address => snapshotGossipTo(address, version, updatedData)) // TODO: can this be better ?
   }
 
   def snapshotGossipTo(
@@ -2545,15 +2544,36 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
         versionVector,
         updatedData)
 
-    snapshotManager.updateKnownVersionVectors(from, versionVector)
 
-    updatedData match {
+    // check if this is a concurrent update
+    val snapshot = snapshotManager.localSnapshots.find(p => p._1.compareTo(versionVector) == VersionVector.Concurrent)
+    snapshot match {
       case Some(p) =>
-        snapshotManager.updateFromGossip(versionVector, p)
-//        p.foreach(pp => changed += pp._1.id)
-        p.foreach(pp => handleUpdate(pp._1, WriteLocal, pp._2, None, None, sendReply = false))
+        // if concurrent
+        val mergedVV = p._1.merge(versionVector)
+
+        if (updatedData.isDefined) {
+          val mergedData = p._2 ++ updatedData.get.map {
+            case (k, v) =>
+              p._2.get(k) match {
+                case Some(foundValue) => k -> v.merge(foundValue)
+                case _ => k -> v
+              }
+          }
+          snapshotManager.updateFromGossip(mergedVV, mergedData)
+          updatedData.get.foreach(pp => handleUpdate(pp._1, WriteLocal, pp._2, None, None, sendReply = false))
+          snapshotManager.updateKnownVersionVectors(from, mergedVV)
+        }
+
       case _ =>
+        // if not concurrent
+        if (updatedData.isDefined) {
+          snapshotManager.updateFromGossip(versionVector, updatedData.get)
+          updatedData.get.foreach(pp => handleUpdate(pp._1, WriteLocal, pp._2, None, None, sendReply = false))
+          snapshotManager.updateKnownVersionVectors(from, versionVector)
+        }
     }
+
     self ! FlushChanges // force notification to subscribers
   }
 
