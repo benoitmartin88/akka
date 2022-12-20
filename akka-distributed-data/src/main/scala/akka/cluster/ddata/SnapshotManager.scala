@@ -72,8 +72,20 @@ private[akka] class SnapshotManager(
   def getKnownVectorClocks: Map[UniqueAddress, VersionVector] = knownVersionVectors.toMap
 
   def updateKnownVersionVectors(node: UniqueAddress, versionVector: VersionVector): Unit = {
-    knownVersionVectors.update(node, versionVector)
+    knownVersionVectors.get(selfUniqueAddress) match {
+      case Some(vv) =>
+        val newVV = vv.merge(VersionVector(node, versionVector.versionAt(node)))
+        knownVersionVectors.update(selfUniqueAddress, newVV)
+      case _ =>
+    }
+
+    knownVersionVectors.get(node) match {
+      case Some(vv) => knownVersionVectors.update(node, versionVector.merge(vv))
+      case _        => knownVersionVectors.update(node, versionVector)
+    }
+
     updateGlobalStableSnapshot()
+
     if (log.isDebugEnabled)
       log.debug(
         "SnapshotManager::updateKnownVersionVectors(node=[{}], versionVector=[{}]): GSS=[{}]",
@@ -119,7 +131,6 @@ private[akka] class SnapshotManager(
         res
     }
 
-
     if (newGssVv != globalStableSnapshot._1) {
       // materialize before current snapshot
       var newGssData = globalStableSnapshot._2 // apply old GSS values
@@ -133,7 +144,7 @@ private[akka] class SnapshotManager(
           localSnapshotData.foreach(p2 => {
             newGssData.get(p2._1) match {
               case Some(newDataValue) => newGssData = newGssData.updated(p2._1, newDataValue.merge(p2._2))
-              case None => newGssData = newGssData.updated(p2._1, p2._2)
+              case None               => newGssData = newGssData.updated(p2._1, p2._2)
             }
           })
 
