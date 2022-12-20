@@ -1816,7 +1816,7 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
   }
 
   def receiveTwoPhaseCommitPrepare(tid: TransactionId, req: Option[Any]): Unit = {
-    if(log.isDebugEnabled) log.debug("Received TwoPhaseCommitPrepare for transaction [{}].", tid)
+    if (log.isDebugEnabled) log.debug("Received TwoPhaseCommitPrepare for transaction [{}].", tid)
 
 //    snapshotManager.currentTransactions.contains(tid)
 
@@ -1833,7 +1833,7 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
   }
 
   def receiveTwoPhaseCommitCommit(trxn: Transaction.Context, req: Option[Any]): Unit = {
-    if(log.isDebugEnabled) log.debug("Received TwoPhaseCommitCommit for transaction [{}].", trxn)
+    if (log.isDebugEnabled) log.debug("Received TwoPhaseCommitCommit for transaction [{}].", trxn)
 
     if (!snapshotManager.currentTransactions.contains(trxn.tid)) {
       replyTo ! TwoPhaseCommitCommitError(
@@ -1849,7 +1849,7 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
   }
 
   def receiveTwoPhaseCommitAbort(tid: TransactionId, req: Option[Any]): Unit = {
-    if(log.isDebugEnabled) log.debug("Received TwoPhaseCommitAbort for transaction [{}].", tid)
+    if (log.isDebugEnabled) log.debug("Received TwoPhaseCommitAbort for transaction [{}].", tid)
     snapshotManager.abort(tid)
     replyTo ! TwoPhaseCommitAbortSuccess(req)
   }
@@ -2554,32 +2554,23 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
         versionVector,
         updatedData)
 
-
-    // check if this is a concurrent update
-    val snapshot = snapshotManager.localSnapshots.find(p => p._1.compareTo(versionVector) == VersionVector.Concurrent)
-    snapshot match {
-      case Some(p) =>
-        // if concurrent
-        val mergedVV = p._1.merge(versionVector)
-
-        if (updatedData.isDefined) {
-          val mergedData = p._2 ++ updatedData.get.map {
-            case (k, v) =>
-              p._2.get(k) match {
-                case Some(foundValue) => k -> v.merge(foundValue)
-                case _ => k -> v
-              }
-          }
-          snapshotManager.updateFromGossip(mergedVV, mergedData)
+    if (updatedData.isDefined) {
+      // check if this is a concurrent update
+      val snapshot = snapshotManager.localSnapshots.find(p => p._1.compareTo(versionVector) == VersionVector.Concurrent) // TODO: if find enough ? maybe first ?
+      snapshot match {
+        case Some(p) =>
+          // if concurrent
+          val mergedVV = p._1.merge(versionVector)
+          snapshotManager.updateFromGossip(mergedVV, updatedData.get)
           snapshotManager.updateKnownVersionVectors(from, mergedVV)
-        }
 
-      case _ =>
-        // if not concurrent
-        if (updatedData.isDefined) {
+        case _ =>
+          // if not concurrent
           snapshotManager.updateFromGossip(versionVector, updatedData.get)
           snapshotManager.updateKnownVersionVectors(from, versionVector)
-        }
+      }
+    } else {
+      snapshotManager.updateKnownVersionVectors(from, versionVector)
     }
   }
 
