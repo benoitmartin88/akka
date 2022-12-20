@@ -4,13 +4,32 @@
 
 package akka.cluster.ddata
 
-import akka.actor.{Actor, ActorInitializationException, ActorLogging, ActorRef, ActorSelection, ActorSystem, Address, Cancellable, DeadLetterActorRef, DeadLetterSuppression, Deploy, ExtendedActorSystem, NoSerializationVerificationNeeded, OneForOneStrategy, Props, ReceiveTimeout, SupervisorStrategy, Terminated}
+import akka.actor.{
+  Actor,
+  ActorInitializationException,
+  ActorLogging,
+  ActorRef,
+  ActorSelection,
+  ActorSystem,
+  Address,
+  Cancellable,
+  DeadLetterActorRef,
+  DeadLetterSuppression,
+  Deploy,
+  ExtendedActorSystem,
+  NoSerializationVerificationNeeded,
+  OneForOneStrategy,
+  Props,
+  ReceiveTimeout,
+  SupervisorStrategy,
+  Terminated
+}
 import akka.annotation.InternalApi
 import akka.cluster.ClusterEvent._
 import akka.cluster.ddata.DurableStore._
-import akka.cluster.ddata.Key.{KeyId, KeyR}
+import akka.cluster.ddata.Key.{ KeyId, KeyR }
 import akka.cluster.ddata.Transaction.TransactionId
-import akka.cluster.{Cluster, Member, MemberStatus, UniqueAddress}
+import akka.cluster.{ Cluster, Member, MemberStatus, UniqueAddress }
 import akka.dispatch.Dispatchers
 import akka.event.Logging
 import akka.remote.RARP
@@ -23,14 +42,14 @@ import com.typesafe.config.Config
 
 import java.security.MessageDigest
 import java.util.Optional
-import java.util.concurrent.{ThreadLocalRandom, TimeUnit}
-import java.util.function.{Function => JFunction}
-import scala.annotation.{nowarn, varargs}
+import java.util.concurrent.{ ThreadLocalRandom, TimeUnit }
+import java.util.function.{ Function => JFunction }
+import scala.annotation.{ nowarn, varargs }
 import scala.collection.immutable.TreeSet
-import scala.collection.{immutable, mutable}
-import scala.concurrent.duration.{FiniteDuration, _}
-import scala.util.control.{NoStackTrace, NonFatal}
-import scala.util.{Failure, Success, Try}
+import scala.collection.{ immutable, mutable }
+import scala.concurrent.duration.{ FiniteDuration, _ }
+import scala.util.control.{ NoStackTrace, NonFatal }
+import scala.util.{ Failure, Success, Try }
 
 // No need to be serialized, because it is only sent from Replicator to local actor
 class CausalMessageWrapper(var messages: mutable.Queue[Any], var version: VersionVector, var fromNode: UniqueAddress) {}
@@ -2597,32 +2616,25 @@ final class Replicator(settings: ReplicatorSettings) extends Actor with ActorLog
       log.debug("Received SnapshotGossip messages=" + messages + ", from=" + from)
     }
 
-    // check if this is a concurrent update
-    val snapshot = snapshotManager.localSnapshots.find(p => p._1.compareTo(versionVector) == VersionVector.Concurrent)
-    snapshot match {
-      case Some(p) =>
-        // if concurrent
-        val mergedVV = p._1.merge(versionVector)
+    if (updatedData.isDefined) {
+      // check if this is a concurrent update
+      val snapshot = snapshotManager.localSnapshots.find(p => p._1.compareTo(versionVector) == VersionVector.Concurrent)  // TODO: if find enough ? maybe first ?
+      snapshot match {
+        case Some(p) =>
+          // if concurrent
+          val mergedVV = p._1.merge(versionVector)
+          snapshotManager.updateFromGossip(mergedVV, updatedData.get)
+          snapshotManager.updateKnownVersionVectors(from, mergedVV)
 
-        if (updatedData.isDefined) {
-          val mergedData = p._2 ++ updatedData.get.map {
-              case (k, v) =>
-                p._2.get(k) match {
-                  case Some(foundValue) => k -> v.merge(foundValue)
-                  case _                => k -> v
-                }
-            }
-          snapshotManager.updateFromGossip(mergedVV, mergedData)
-        }
-
-      case _ =>
-        // if not concurrent
-        if (updatedData.isDefined) {
+        case _ =>
+          // if not concurrent
           snapshotManager.updateFromGossip(versionVector, updatedData.get)
-        }
+          snapshotManager.updateKnownVersionVectors(from, versionVector)
+      }
+    } else {
+      snapshotManager.updateKnownVersionVectors(from, versionVector)
     }
 
-    snapshotManager.updateKnownVersionVectors(from, versionVector) // TODO: might need to update with mergedVV
 
     // deliver causal messages to causal actor
     messages match {
